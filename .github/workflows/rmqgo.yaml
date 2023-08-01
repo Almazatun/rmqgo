@@ -1,0 +1,46 @@
+name: rmqgo
+
+on:
+  push:
+    branches: [main]
+
+env:
+  RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+  RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
+  RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+  RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT }}
+
+jobs:
+  audit:
+    runs-on: ubuntu-20.04
+
+    services:
+      rabbitmq:
+        image: rabbitmq
+        env:
+          RABBITMQ_DEFAULT_USER: ${{ env.RABBITMQ_USER }}
+          RABBITMQ_DEFAULT_PASS: ${{ env.RABBITMQ_PASS }}
+        ports:
+          - 5672:5672
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.19.x'
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Build
+        run: make build
+
+      - name: Run test
+        run: make test
+        env:
+          RABBITMQ_HOST: ${{ env.RABBITMQ_HOST }}
+          RABBITMQ_USER: ${{ env.RABBITMQ_USER }}
+          RABBITMQ_PASS: ${{ env.RABBITMQ_PASS }}
+          RABBITMQ_PORT: ${{ env.RABBITMQ_PORT }}
+        
