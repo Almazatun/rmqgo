@@ -13,11 +13,6 @@ import (
 var mq Rmq = *New()
 var user, pass, host, port string
 
-type Response struct {
-	Method string
-	Msg    string
-}
-
 func loadENVs() {
 	err := godotenv.Load(".env")
 
@@ -120,7 +115,7 @@ func TestSendMsg(t *testing.T) {
 	}
 
 	b := <-mq.messageChan
-	receivedMsg := Response{}
+	receivedMsg := SendMsg{}
 
 	err = json.Unmarshal(b, &receivedMsg)
 
