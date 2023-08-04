@@ -251,8 +251,6 @@ func TestSendReplyMsgServiceToService(t *testing.T) {
 
 	err = json.Unmarshal(*b, &receivedMsg)
 
-	fmt.Println(receivedMsg)
-
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
