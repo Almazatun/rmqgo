@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os/exec"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -231,7 +231,14 @@ func (rmq *Rmq) SendReplyMsg(ex, rk string, msg interface{}, method string) (res
 		log.Fatal(err)
 	}
 
-	corrId := uuid.New().String()
+	corrIdBytes, err := exec.Command("uuidgen").Output()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	corrId := string(corrIdBytes)
+
 	rmq.correlationIdsMap[corrId] = corrId
 
 	err = rmq.Channel.PublishWithContext(ctx,
