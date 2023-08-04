@@ -320,7 +320,9 @@ func (rmq *Rmq) CreateConsumer(
 				}
 			}
 
-			if d.CorrelationId != "" && msg.Method != "" && resMas != nil {
+			_, ok := rmq.correlationIdsMap[d.CorrelationId]
+
+			if d.CorrelationId != "" && msg.Method != "" && resMas != nil && !ok {
 				rmq.replay(replayMsg{
 					Msg:           resMas,
 					Method:        msg.Method,
@@ -329,6 +331,11 @@ func (rmq *Rmq) CreateConsumer(
 					Exchange:      d.Exchange,
 				})
 			} else {
+
+				if ok {
+					delete(rmq.correlationIdsMap, d.CorrelationId)
+				}
+
 				go func() {
 					rmq.messageChan <- d.Body
 				}()
@@ -416,7 +423,7 @@ func (rmq *Rmq) replay(input replayMsg) {
 
 	err = rmq.Channel.PublishWithContext(
 		ctx,
-		input.Exchange, // exchange
+		input.ReplayTo, // exchange
 		input.ReplayTo, // routing key
 		false,          // mandatory
 		false,          // immediate
@@ -425,6 +432,10 @@ func (rmq *Rmq) replay(input replayMsg) {
 			ContentType:   "text/plain",
 			Body:          []byte(b),
 		})
+
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func (rmq *Rmq) checkConnection() {

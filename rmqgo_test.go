@@ -11,6 +11,7 @@ import (
 )
 
 var mq Rmq = *New()
+var mq_service = *New()
 var user, pass, host, port string
 
 func loadENVs() {
@@ -92,7 +93,11 @@ func TestCreateConsumer(t *testing.T) {
 	wg.Add(1)
 	config.Wg = wg
 
-	mq.CreateConsumer(config, make(map[string]func([]byte) interface{}))
+	m := make(map[string]func([]byte) interface{})
+	nameFunc := "createFoo"
+	m[nameFunc] = createFoo
+
+	mq.CreateConsumer(config, m)
 
 	if !mq.isCreatedConsumer {
 		t.Fatalf("Failed to create consumer")
@@ -188,4 +193,75 @@ func TestSendReplyMsg(t *testing.T) {
 	if receivedMsg.Msg != sendMsg {
 		t.Fatalf("Not published message in queue")
 	}
+}
+
+func TestSendReplyMsgServiceToService(t *testing.T) {
+	s := "service"
+
+	config := ConnectConfig{
+		User:         user,
+		Pass:         pass,
+		Host:         host,
+		Port:         port,
+		IsInit:       true,
+		NameQueue:    &s,
+		ExchangeName: &s,
+	}
+
+	mq_service.Connect(config)
+
+	if !mq_service.isConnected {
+		t.Fatalf("Connection failed")
+	}
+
+	if !mq_service.isInitialized {
+		t.Fatalf("Connection with init flag failed")
+	}
+
+	consumerConfig := CreateConsumerConfig{
+		mq_service.replyQueue.Name,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	consumerConfig.Wg = wg
+
+	m := make(map[string]func([]byte) interface{})
+	nameFunc := "createFoo"
+	m[nameFunc] = createFoo
+
+	mq_service.CreateConsumer(consumerConfig, m)
+
+	method := "createFoo"
+	sendMsg := "Message"
+	b, err := mq_service.SendReplyMsg("test", "test", sendMsg, method)
+
+	if err != nil {
+		t.Fatalf("Failed to publish message")
+	}
+
+	receivedMsg := SendMsg{}
+	msg := createFoo([]byte{})
+
+	err = json.Unmarshal(*b, &receivedMsg)
+
+	fmt.Println(receivedMsg)
+
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if receivedMsg.Msg != msg {
+		t.Fatalf("Not published message in queue")
+	}
+}
+
+func createFoo(b []byte) interface{} {
+	return "CreatedFoo"
 }
