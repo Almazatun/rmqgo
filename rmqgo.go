@@ -3,10 +3,7 @@ package rmqgo
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
-	"os/exec"
-	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -17,22 +14,19 @@ type Rmq struct {
 	Channel           *amqp.Channel
 	replyQueue        *amqp.Queue
 	topicQueue        *amqp.Queue
-	messageChan       chan []byte
+	msgChan           chan []byte
 	isConnected       bool
-	isInitialized     bool
-	isCreatedConsumer bool
 	correlationIdsMap map[string]string
 }
 
 type ConnectConfig struct {
-	User         string
-	Pass         string
-	Host         string
-	Port         string
-	IsInit       bool
-	NameQueue    *string
-	ExchangeName *string
+	User string
+	Pass string
+	Host string
+	Port string
 }
+
+type Msg interface{}
 
 type CreateQueueConfig struct {
 	// https://www.rabbitmq.com/ttl.html
@@ -54,7 +48,7 @@ type exchangeType struct {
 
 type SendMsg struct {
 	Method string
-	Msg    interface{}
+	Msg
 }
 
 type replayMsg struct {
@@ -63,11 +57,6 @@ type replayMsg struct {
 	CorrelationId string
 	ReplayTo      string
 	Exchange      string
-}
-
-type consumerMsg struct {
-	Method string
-	Msg    interface{}
 }
 
 var ExchangeType = exchangeType{
@@ -86,17 +75,6 @@ type CreateExchangeConfig struct {
 	Args       *map[string]interface{}
 }
 
-type CreateConsumerConfig struct {
-	QueueName string
-	Consumer  string
-	AutoAck   bool
-	Exclusive bool
-	NoWait    bool
-	NoLocal   bool
-	// Make able to run in other thread
-	Wg *sync.WaitGroup
-}
-
 type BindQueueByExgConfig struct {
 	QueueName    string
 	RoutingKey   string
@@ -112,65 +90,42 @@ func New() *Rmq {
 		replyQueue:        nil,
 		topicQueue:        nil,
 		isConnected:       false,
-		isInitialized:     false,
-		isCreatedConsumer: false,
 		correlationIdsMap: make(map[string]string),
+		msgChan:           make(chan []byte),
 	}
 }
 
-func (rmq *Rmq) Connect(config ConnectConfig) {
+func (rmq *Rmq) Connect(config ConnectConfig) error {
 	dt := rmq.fillConnectionConfig(config)
 
 	c, err := amqp.Dial("amqp://" + dt.User + ":" + dt.Pass + "@" + dt.Host + dt.Port)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
 
 	rmq.Connection = c
 	rmq.isConnected = true
-	rmq.Channel = rmq.CreateChannel()
-	rmq.isInitialized = true
+	ch, err := rmq.CreateChannel()
 
-	if config.IsInit {
-		m := make(map[string]interface{})
-
-		rmq.replyQueue = rmq.CreateQueue(CreateQueueConfig{
-			Name:         *config.NameQueue,
-			DeleteUnused: false,
-			Exclusive:    false,
-			NoWait:       false,
-			Durable:      true,
-			Args:         &m,
-		})
-
-		rmq.CreateExchange(CreateExchangeConfig{
-			Name:       rmq.replyQueue.Name,
-			Type:       ExchangeType.Direct,
-			Durable:    true,
-			AutoDelete: false,
-			Internal:   false,
-			NoWait:     false,
-			Args:       &m,
-		})
-
-		rmq.BindQueueByExchange(BindQueueByExgConfig{
-			rmq.replyQueue.Name,
-			*config.NameQueue,
-			*config.NameQueue,
-			false,
-			&m,
-		})
+	if err != nil {
+		log.Println(err)
+		return err
 	}
+
+	rmq.Channel = ch
+
+	return nil
 }
 
-func (rmq *Rmq) CreateQueue(config CreateQueueConfig) *amqp.Queue {
+func (rmq *Rmq) CreateQueue(config CreateQueueConfig) (q *amqp.Queue, err error) {
 	dt := rmq.fillCreateQueueConfig(config)
 
 	args := amqp.Table{}
 	args["x-message-ttl"] = dt.MsgTtl
 
-	q, err := rmq.Channel.QueueDeclare(
+	cq, err := rmq.Channel.QueueDeclare(
 		dt.Name,
 		dt.Durable,
 		dt.DeleteUnused,
@@ -180,199 +135,28 @@ func (rmq *Rmq) CreateQueue(config CreateQueueConfig) *amqp.Queue {
 	)
 
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	return &q
-}
-
-func (rmq *Rmq) Send(ex, rk string, msg interface{}, method string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	out, err := json.Marshal(SendMsg{
-		Msg:    msg,
-		Method: method,
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = rmq.Channel.PublishWithContext(ctx,
-		ex,    // exchange
-		rk,    // routing key
-		false, // mandatory
-		false, // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        []byte(out),
-		})
-
-	if err != nil {
-		fmt.Println("Failed to declare an exchange")
-
-		return err
-	}
-
-	return nil
-}
-
-func (rmq *Rmq) SendReplyMsg(ex, rk string, msg interface{}, method string) (res *[]byte, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	out, err := json.Marshal(SendMsg{
-		Msg:    msg,
-		Method: method,
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	corrIdBytes, err := exec.Command("uuidgen").Output()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	corrId := string(corrIdBytes)
-
-	rmq.correlationIdsMap[corrId] = corrId
-
-	err = rmq.Channel.PublishWithContext(ctx,
-		ex,    // exchange
-		rk,    // routing key
-		false, // mandatory
-		false, // immediate
-		amqp.Publishing{
-			ContentType:   "text/plain",
-			Body:          []byte(out),
-			ReplyTo:       rmq.replyQueue.Name,
-			CorrelationId: corrId,
-		})
-
-	if err != nil {
-		fmt.Println("Failed to declare an exchange")
-
+		log.Println(err)
 		return nil, err
 	}
 
-	for msg := range rmq.messageChan {
-		res = &msg
-		break
-	}
-
-	return res, nil
+	return &cq, nil
 }
 
-func (rmq *Rmq) CreateConsumer(
-	config CreateConsumerConfig,
-	funcMap map[string]func([]byte) interface{},
-) {
-	if config.Wg != nil {
-		defer config.Wg.Done()
-	}
-
-	var err error
-	// var ttl int
-	args := amqp.Table{
-		// "x-dead-letter-exchange":    "",
-		// "x-dead-letter-routing-key": config.QueueName,
-		// "x-message-ttl":             int64(ttl),
-		// "x-expires":                 int64(ttl),
-		// "x-max-priority":            uint8(),
-	}
-
-	runnerChan := make(chan bool)
-
-	msgs, err := rmq.Channel.Consume(
-		config.QueueName, // queue
-		config.Consumer,  // consumer
-		config.AutoAck,
-		config.Exclusive,
-		config.NoLocal,
-		config.NoWait,
-		args,
-	)
-
-	rmq.messageChan = make(chan []byte)
-
-	if err != nil {
-		fmt.Println("Error when consuming message", err.Error())
-	}
-
-	rmq.isCreatedConsumer = true
-
-	go func() {
-		for d := range msgs {
-			// fmt.Printf("Received a message: %s", d.Body)
-			msg := consumerMsg{}
-			err := json.Unmarshal(d.Body, &msg)
-
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			var resMas interface{}
-
-			if funcMap != nil {
-				if msg.Method != "" {
-					_, ok := funcMap[msg.Method]
-
-					if ok {
-						resMas = funcMap[msg.Method](d.Body)
-					}
-				}
-			}
-
-			_, ok := rmq.correlationIdsMap[d.CorrelationId]
-
-			if d.CorrelationId != "" && msg.Method != "" && resMas != nil && !ok {
-				rmq.replay(replayMsg{
-					Msg:           resMas,
-					Method:        msg.Method,
-					CorrelationId: d.CorrelationId,
-					ReplayTo:      d.ReplyTo,
-					Exchange:      d.Exchange,
-				})
-			} else {
-
-				if ok {
-					delete(rmq.correlationIdsMap, d.CorrelationId)
-				}
-
-				go func() {
-					rmq.messageChan <- d.Body
-				}()
-			}
-			d.Ack(true)
-		}
-	}()
-
-	if config.Wg == nil {
-		log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-		<-runnerChan
-	}
-}
-
-func (rmq *Rmq) CreateChannel() *amqp.Channel {
+func (rmq *Rmq) CreateChannel() (c *amqp.Channel, err error) {
 	rmq.checkConnection()
 
 	ch, err := rmq.Connection.Channel()
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return nil, err
 	}
 
-	rmq.isInitialized = true
-
-	return ch
+	return ch, nil
 }
 
-func (rmq *Rmq) CreateExchange(config CreateExchangeConfig) {
-	if !rmq.isInitialized {
+func (rmq *Rmq) CreateExchange(config CreateExchangeConfig) error {
+	if rmq.Channel == nil {
 		log.Fatal("Channel not initialized to create exchange")
 	}
 
@@ -391,12 +175,15 @@ func (rmq *Rmq) CreateExchange(config CreateExchangeConfig) {
 	)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
+
+	return nil
 }
 
-func (rmq *Rmq) BindQueueByExchange(config BindQueueByExgConfig) {
-	if !rmq.isInitialized {
+func (rmq *Rmq) BindQueueByExchange(config BindQueueByExgConfig) error {
+	if rmq.Channel == nil {
 		log.Fatal("Channel not initialized to bind queue")
 	}
 
@@ -409,13 +196,26 @@ func (rmq *Rmq) BindQueueByExchange(config BindQueueByExgConfig) {
 	)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
+
+	return nil
 }
 
-func (rmq *Rmq) Close() {
-	rmq.Channel.Close()
-	rmq.Connection.Close()
+func (rmq *Rmq) Close() error {
+	err := rmq.Channel.Close()
+
+	if err != nil {
+		return err
+	}
+	err = rmq.Connection.Close()
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (rmq *Rmq) replay(input replayMsg) {
@@ -441,7 +241,7 @@ func (rmq *Rmq) replay(input replayMsg) {
 		})
 
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 

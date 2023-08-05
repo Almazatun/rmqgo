@@ -8,11 +8,16 @@ import (
 	"testing"
 
 	"github.com/joho/godotenv"
+	"github.com/rabbitmq/amqp091-go"
 )
 
 var mq Rmq = *New()
-var mq_service = *New()
+var mq_Rmq_Service = *New()
 var user, pass, host, port string
+var q *amqp091.Queue
+var producer *Producer
+var consumer *Consumer
+var ex = "ex"
 
 func loadENVs() {
 	err := godotenv.Load(".env")
@@ -30,96 +35,122 @@ func TestConnection(t *testing.T) {
 	port = os.Getenv("RABBITMQ_PORT")
 
 	config := ConnectConfig{
-		User:         user,
-		Pass:         pass,
-		Host:         host,
-		Port:         port,
-		IsInit:       false,
-		NameQueue:    nil,
-		ExchangeName: nil,
+		User: user,
+		Pass: pass,
+		Host: host,
+		Port: port,
 	}
 
-	mq.Connect(config)
+	err := mq.Connect(config)
 
-	if mq.isConnected == false {
-		t.Fatalf("Connection failed")
+	if err != nil {
+		t.Fatalf(err.Error())
 	}
 }
 
-func TestConnectionWithInitMode(t *testing.T) {
-	test := "test"
+func TestCreateChannel(t *testing.T) {
+	ch, err := mq.CreateChannel()
 
-	config := ConnectConfig{
-		User:         user,
-		Pass:         pass,
-		Host:         host,
-		Port:         port,
-		IsInit:       true,
-		NameQueue:    &test,
-		ExchangeName: &test,
+	if err != nil {
+		t.Fatalf("Failed to create channel")
 	}
 
-	mq.Connect(config)
+	mq.Channel = ch
+}
 
-	if !mq.isConnected {
-		t.Fatalf("Connection failed")
+func TestCreateQueue(t *testing.T) {
+	args := make(map[string]interface{})
+
+	queue, err := mq.CreateQueue(CreateQueueConfig{
+		Name:         "test",
+		DeleteUnused: false,
+		Exclusive:    false,
+		NoWait:       false,
+		Durable:      true,
+		Args:         &args,
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create queue")
 	}
 
-	if !mq.isInitialized {
-		t.Fatalf("Connection with init flag failed")
+	q = queue
+}
+
+func TestCreateExchange(t *testing.T) {
+	args := make(map[string]interface{})
+
+	err := mq.CreateExchange(CreateExchangeConfig{
+		Name:       ex,
+		Type:       ExchangeType.Direct,
+		Durable:    true,
+		AutoDelete: false,
+		Internal:   false,
+		NoWait:     false,
+		Args:       &args,
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create exchange")
 	}
+}
+
+func TestBindExchangeByQueue(t *testing.T) {
+	args := make(map[string]interface{})
+
+	err := mq.BindQueueByExchange(BindQueueByExgConfig{
+		QueueName:    q.Name,
+		RoutingKey:   q.Name,
+		ExchangeName: ex,
+		NoWait:       false,
+		Args:         &args,
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to bind exchange by queue")
+	}
+}
+
+func TestCreateProducer(t *testing.T) {
+	producer = NewProducer(
+		&mq,
+		WithProducerInit(ProducerInitConfig{
+			NameQueue:    "test",
+			ExchangeName: "test",
+		}),
+	)
 }
 
 func TestCreateConsumer(t *testing.T) {
-	if !mq.isConnected {
-		t.Fatalf("Not connect to rabbit MQ")
-	}
-
-	if !mq.isInitialized {
-		t.Fatalf("Not init channel")
-	}
-
-	config := CreateConsumerConfig{
-		mq.replyQueue.Name,
-		"",
-		false,
-		false,
-		false,
-		false,
-		nil,
-	}
-
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	config.Wg = wg
 
-	m := make(map[string]func([]byte) interface{})
-	nameFunc := "createFoo"
-	m[nameFunc] = createFoo
+	consumer := NewConsumer(
+		&mq,
+		WithConsumerConfig(CreateConsumerConfig{
+			NameQueue: "test",
+			Consumer:  "",
+			AutoAck:   false,
+			Exclusive: false,
+			NoWait:    false,
+			NoLocal:   false,
+		}),
+		WithConsumerWaitGroup(wg),
+	)
 
-	mq.CreateConsumer(config, m)
-
-	if !mq.isCreatedConsumer {
-		t.Fatalf("Failed to create consumer")
-	}
+	consumer.Listen()
 }
 
-func TestSendMsg(t *testing.T) {
-	if !mq.isConnected {
-		t.Fatalf("Not connect to rabbit MQ")
-	}
-
-	if !mq.isInitialized {
-		t.Fatalf("Not init channel")
-	}
-	sendMsg := "Hello"
-	err := mq.Send("test", "test", sendMsg, "")
+func TestSendMsgProducer(t *testing.T) {
+	msg := "test"
+	err := producer.Send(ex, "test", msg, "")
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-mq.messageChan
+	b := <-mq.msgChan
+
 	receivedMsg := SendMsg{}
 
 	err = json.Unmarshal(b, &receivedMsg)
@@ -128,30 +159,21 @@ func TestSendMsg(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	if receivedMsg.Msg != sendMsg {
+	if receivedMsg.Msg != msg {
 		t.Fatalf("Not published message in queue")
 	}
-
 }
-
-func TestSendMsgByMethod(t *testing.T) {
-	if !mq.isConnected {
-		t.Fatalf("Not connect to rabbit MQ")
-	}
-
-	if !mq.isInitialized {
-		t.Fatalf("Not init channel")
-	}
-
-	m := "test_method"
-	sendMsg := "TEST"
-	err := mq.Send("test", "test", sendMsg, m)
+func TestSendMsgByMethodProducer(t *testing.T) {
+	msg := "msg"
+	method := "method"
+	err := producer.Send(ex, "test", msg, method)
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-mq.messageChan
+	b := <-mq.msgChan
+
 	receivedMsg := SendMsg{}
 
 	err = json.Unmarshal(b, &receivedMsg)
@@ -160,94 +182,20 @@ func TestSendMsgByMethod(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	if receivedMsg.Msg != sendMsg {
+	if receivedMsg.Msg != msg {
 		t.Fatalf("Not published message in queue")
 	}
 }
 
 func TestSendReplyMsg(t *testing.T) {
-	if !mq.isConnected {
-		t.Fatalf("Not connect to rabbit MQ")
-	}
-
-	if !mq.isInitialized {
-		t.Fatalf("Not init channel")
-	}
-
-	m := "test_method"
-	sendMsg := "Replay"
-	b, err := mq.SendReplyMsg("test", "test", sendMsg, m)
+	msg := "msg"
+	b, err := producer.SendReplyMsg(ex, "test", msg, "")
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
 	}
 
 	receivedMsg := SendMsg{}
-
-	err = json.Unmarshal(*b, &receivedMsg)
-
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	if receivedMsg.Msg != sendMsg {
-		t.Fatalf("Not published message in queue")
-	}
-}
-
-func TestSendReplyMsgServiceToService(t *testing.T) {
-	s := "service"
-
-	config := ConnectConfig{
-		User:         user,
-		Pass:         pass,
-		Host:         host,
-		Port:         port,
-		IsInit:       true,
-		NameQueue:    &s,
-		ExchangeName: &s,
-	}
-
-	mq_service.Connect(config)
-
-	if !mq_service.isConnected {
-		t.Fatalf("Connection failed")
-	}
-
-	if !mq_service.isInitialized {
-		t.Fatalf("Connection with init flag failed")
-	}
-
-	consumerConfig := CreateConsumerConfig{
-		mq_service.replyQueue.Name,
-		"",
-		false,
-		false,
-		false,
-		false,
-		nil,
-	}
-
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	consumerConfig.Wg = wg
-
-	m := make(map[string]func([]byte) interface{})
-	nameFunc := "createFoo"
-	m[nameFunc] = createFoo
-
-	mq_service.CreateConsumer(consumerConfig, m)
-
-	method := "createFoo"
-	sendMsg := "Message"
-	b, err := mq_service.SendReplyMsg("test", "test", sendMsg, method)
-
-	if err != nil {
-		t.Fatalf("Failed to publish message")
-	}
-
-	receivedMsg := SendMsg{}
-	msg := createFoo([]byte{})
 
 	err = json.Unmarshal(*b, &receivedMsg)
 
@@ -258,6 +206,89 @@ func TestSendReplyMsgServiceToService(t *testing.T) {
 	if receivedMsg.Msg != msg {
 		t.Fatalf("Not published message in queue")
 	}
+}
+
+func TestSendReplyMsgToService(t *testing.T) {
+	s := "service"
+	var consumer_service *Consumer
+
+	config := ConnectConfig{
+		User: user,
+		Pass: pass,
+		Host: host,
+		Port: port,
+	}
+
+	err := mq_Rmq_Service.Connect(config)
+
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	args := make(map[string]interface{})
+
+	mq_Rmq_Service.replyQueue, err = mq_Rmq_Service.CreateQueue(CreateQueueConfig{
+		Name:         s,
+		DeleteUnused: false,
+		Exclusive:    false,
+		NoWait:       false,
+		Durable:      true,
+		Args:         &args,
+	})
+
+	mq_Rmq_Service.BindQueueByExchange(BindQueueByExgConfig{
+		QueueName:    s,
+		RoutingKey:   s,
+		ExchangeName: ex,
+		NoWait:       false,
+		Args:         &args,
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to create queue")
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	consumer_service = NewConsumer(
+		&mq_Rmq_Service,
+		WithConsumerConfig(CreateConsumerConfig{
+			NameQueue: mq_Rmq_Service.replyQueue.Name,
+			Consumer:  "",
+			AutoAck:   false,
+			Exclusive: false,
+			NoWait:    false,
+			NoLocal:   false,
+		}),
+		WithConsumerWaitGroup(wg),
+	)
+
+	nameFunc := "createFoo"
+	sendMsg := "msg"
+
+	consumer_service.AddHandleFunc(nameFunc, createFoo)
+	consumer_service.Listen()
+
+	b, err := producer.SendReplyMsg(ex, s, sendMsg, nameFunc)
+
+	if err != nil {
+		t.Fatalf("Failed to publish message")
+	}
+
+	receivedMsg := SendMsg{}
+
+	err = json.Unmarshal(*b, &receivedMsg)
+
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if receivedMsg.Msg != createFoo([]byte{}) {
+		t.Fatalf("Not published message in queue")
+	}
+
+	// wg.Wait()
 }
 
 func createFoo(b []byte) interface{} {
