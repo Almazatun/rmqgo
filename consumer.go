@@ -103,11 +103,11 @@ func (c *Consumer) Listen() {
 		defer c.wg.Done()
 	}
 
-	if c.Rmq.Channel == nil {
+	if c.Rmq.channel == nil {
 		log.Fatal("Not initialized channel in Rmq")
 	}
 
-	msgs, err := c.Rmq.Channel.Consume(
+	msgs, err := c.Rmq.channel.Consume(
 		c.config.NameQueue, // queue
 		c.config.Consumer,  // consumer
 		c.config.AutoAck,

@@ -3,6 +3,7 @@ package rmqgo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"time"
 
@@ -10,8 +11,8 @@ import (
 )
 
 type Rmq struct {
-	Connection        *amqp.Connection
-	Channel           *amqp.Channel
+	connection        *amqp.Connection
+	channel           *amqp.Channel
 	replyQueue        *amqp.Queue
 	topicQueue        *amqp.Queue
 	msgChan           chan []byte
@@ -46,6 +47,13 @@ type exchangeType struct {
 	Fanout string
 }
 
+type exchanges struct {
+	RmqDirect  string
+	RmqTopic   string
+	RmqFanout  string
+	RmqHeaders string
+}
+
 type SendMsg struct {
 	Method string
 	Msg
@@ -57,6 +65,13 @@ type replayMsg struct {
 	CorrelationId string
 	ReplayTo      string
 	Exchange      string
+}
+
+var Exchanges = exchanges{
+	RmqDirect:  "rmq.direct",
+	RmqTopic:   "rmq.topic",
+	RmqFanout:  "rmq.fanout",
+	RmqHeaders: "rmq.headers",
 }
 
 var ExchangeType = exchangeType{
@@ -85,8 +100,8 @@ type BindQueueByExgConfig struct {
 
 func New() *Rmq {
 	return &Rmq{
-		Connection:        nil,
-		Channel:           nil,
+		connection:        nil,
+		channel:           nil,
 		replyQueue:        nil,
 		topicQueue:        nil,
 		isConnected:       false,
@@ -105,7 +120,7 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 		return err
 	}
 
-	rmq.Connection = c
+	rmq.connection = c
 	rmq.isConnected = true
 	ch, err := rmq.CreateChannel()
 
@@ -114,18 +129,23 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 		return err
 	}
 
-	rmq.Channel = ch
+	rmq.channel = ch
 
 	return nil
 }
 
 func (rmq *Rmq) CreateQueue(config CreateQueueConfig) (q *amqp.Queue, err error) {
+	if rmq.channel == nil {
+		errorMsg := "Channel not initialized to create queue"
+		return nil, errors.New(errorMsg)
+	}
+
 	dt := rmq.fillCreateQueueConfig(config)
 
 	args := amqp.Table{}
 	args["x-message-ttl"] = dt.MsgTtl
 
-	cq, err := rmq.Channel.QueueDeclare(
+	cq, err := rmq.channel.QueueDeclare(
 		dt.Name,
 		dt.Durable,
 		dt.DeleteUnused,
@@ -145,7 +165,7 @@ func (rmq *Rmq) CreateQueue(config CreateQueueConfig) (q *amqp.Queue, err error)
 func (rmq *Rmq) CreateChannel() (c *amqp.Channel, err error) {
 	rmq.checkConnection()
 
-	ch, err := rmq.Connection.Channel()
+	ch, err := rmq.connection.Channel()
 
 	if err != nil {
 		log.Println(err)
@@ -156,15 +176,16 @@ func (rmq *Rmq) CreateChannel() (c *amqp.Channel, err error) {
 }
 
 func (rmq *Rmq) CreateExchange(config CreateExchangeConfig) error {
-	if rmq.Channel == nil {
-		log.Fatal("Channel not initialized to create exchange")
+	if rmq.channel == nil {
+		errorMsg := "Channel not initialized to create exchange"
+		return errors.New(errorMsg)
 	}
 
 	if config.Name == "" {
 		log.Fatal("Exchange name required")
 	}
 
-	err := rmq.Channel.ExchangeDeclare(
+	err := rmq.channel.ExchangeDeclare(
 		config.Name,
 		config.Type,
 		config.Durable,
@@ -183,11 +204,12 @@ func (rmq *Rmq) CreateExchange(config CreateExchangeConfig) error {
 }
 
 func (rmq *Rmq) BindQueueByExchange(config BindQueueByExgConfig) error {
-	if rmq.Channel == nil {
-		log.Fatal("Channel not initialized to bind queue")
+	if rmq.channel == nil {
+		errorMsg := "Channel not initialized to make able to bind queue"
+		return errors.New(errorMsg)
 	}
 
-	err := rmq.Channel.QueueBind(
+	err := rmq.channel.QueueBind(
 		config.QueueName,
 		config.RoutingKey,
 		config.ExchangeName,
@@ -204,12 +226,17 @@ func (rmq *Rmq) BindQueueByExchange(config BindQueueByExgConfig) error {
 }
 
 func (rmq *Rmq) Close() error {
-	err := rmq.Channel.Close()
+	if rmq.channel == nil || rmq.connection == nil {
+		errorMsg := "Rabbit mq not connected"
+		return errors.New(errorMsg)
+	}
+
+	err := rmq.channel.Close()
 
 	if err != nil {
 		return err
 	}
-	err = rmq.Connection.Close()
+	err = rmq.connection.Close()
 
 	if err != nil {
 		return err
@@ -228,12 +255,12 @@ func (rmq *Rmq) replay(input replayMsg) {
 		log.Fatal(err)
 	}
 
-	err = rmq.Channel.PublishWithContext(
+	err = rmq.channel.PublishWithContext(
 		ctx,
-		input.ReplayTo, // exchange
-		input.ReplayTo, // routing key
-		false,          // mandatory
-		false,          // immediate
+		Exchanges.RmqDirect, // exchange
+		input.ReplayTo,      // routing key
+		false,               // mandatory
+		false,               // immediate
 		amqp.Publishing{
 			CorrelationId: input.CorrelationId,
 			ContentType:   "text/plain",
@@ -242,6 +269,51 @@ func (rmq *Rmq) replay(input replayMsg) {
 
 	if err != nil {
 		log.Println(err)
+	}
+}
+
+func (rmq *Rmq) declareReplayQueue(replayQueueName string) {
+	var err error
+	args := make(map[string]interface{})
+
+	rmq.replyQueue, err = rmq.CreateQueue(CreateQueueConfig{
+		Name:         replayQueueName,
+		DeleteUnused: false,
+		Exclusive:    false,
+		NoWait:       false,
+		Durable:      true,
+		Args:         &args,
+		MsgTtl:       nil,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = rmq.CreateExchange(CreateExchangeConfig{
+		Name:       Exchanges.RmqDirect,
+		Type:       ExchangeType.Direct,
+		Durable:    true,
+		AutoDelete: false,
+		Internal:   false,
+		NoWait:     false,
+		Args:       &args,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = rmq.BindQueueByExchange(BindQueueByExgConfig{
+		rmq.replyQueue.Name,
+		rmq.replyQueue.Name,
+		Exchanges.RmqDirect,
+		false,
+		&args,
+	})
+
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 

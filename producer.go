@@ -3,6 +3,7 @@ package rmqgo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -13,7 +14,7 @@ import (
 
 type Producer struct {
 	*Rmq
-	isInitialized bool
+	isInitializedRpc bool
 }
 
 type ProducerInitConfig struct {
@@ -48,11 +49,11 @@ func (p *Producer) Send(ex, rk string, msg interface{}, method string) error {
 		log.Fatal(err)
 	}
 
-	if p.Rmq.Channel == nil {
+	if p.Rmq.channel == nil {
 		log.Fatal("Not initialized channel in Rmq")
 	}
 
-	err = p.Rmq.Channel.PublishWithContext(ctx,
+	err = p.Rmq.channel.PublishWithContext(ctx,
 		ex,    // exchange
 		rk,    // routing key
 		false, // mandatory
@@ -72,6 +73,10 @@ func (p *Producer) Send(ex, rk string, msg interface{}, method string) error {
 }
 
 func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (res *[]byte, err error) {
+	if !p.isInitializedRpc {
+		return nil, errors.New("Producer initialized with RPC mode to use SendReplayMsg")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -94,11 +99,11 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 
 	p.Rmq.correlationIdsMap[corrId] = corrId
 
-	if p.Rmq.Channel == nil {
+	if p.Rmq.channel == nil {
 		log.Fatal("Not initialized channel in Rmq")
 	}
 
-	err = p.Rmq.Channel.PublishWithContext(ctx,
+	err = p.Rmq.channel.PublishWithContext(ctx,
 		ex,    // exchange
 		rk,    // routing key
 		false, // mandatory
@@ -115,7 +120,6 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 
 		return nil, err
 	}
-
 	for msg := range p.Rmq.msgChan {
 		res = &msg
 		break
@@ -124,53 +128,12 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 	return res, nil
 }
 
-func WithProducerInit(config ProducerInitConfig) ProducerOption {
-	var err error
-	m := make(map[string]interface{})
-
+func WithRpc(replayQueueName string) ProducerOption {
 	return func(p *Producer) {
 		if p.Rmq.replyQueue == nil {
-			p.Rmq.replyQueue, err = p.Rmq.CreateQueue(CreateQueueConfig{
-				Name:         config.NameQueue,
-				DeleteUnused: false,
-				Exclusive:    false,
-				NoWait:       false,
-				Durable:      true,
-				Args:         &m,
-				MsgTtl:       nil,
-			})
-
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			err = p.Rmq.CreateExchange(CreateExchangeConfig{
-				Name:       config.ExchangeName,
-				Type:       ExchangeType.Direct,
-				Durable:    true,
-				AutoDelete: false,
-				Internal:   false,
-				NoWait:     false,
-				Args:       &m,
-			})
-
-			if err != nil {
-				log.Fatal(err)
-			}
+			p.Rmq.declareReplayQueue(replayQueueName)
 		}
 
-		err = p.Rmq.BindQueueByExchange(BindQueueByExgConfig{
-			p.Rmq.replyQueue.Name,
-			config.NameQueue,
-			config.NameQueue,
-			false,
-			&m,
-		})
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		p.isInitialized = true
+		p.isInitializedRpc = true
 	}
 }

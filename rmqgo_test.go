@@ -17,7 +17,6 @@ var user, pass, host, port string
 var q *amqp091.Queue
 var producer *Producer
 var consumer *Consumer
-var ex = "ex"
 
 func loadENVs() {
 	err := godotenv.Load(".env")
@@ -55,7 +54,7 @@ func TestCreateChannel(t *testing.T) {
 		t.Fatalf("Failed to create channel")
 	}
 
-	mq.Channel = ch
+	mq.channel = ch
 }
 
 func TestCreateQueue(t *testing.T) {
@@ -81,7 +80,7 @@ func TestCreateExchange(t *testing.T) {
 	args := make(map[string]interface{})
 
 	err := mq.CreateExchange(CreateExchangeConfig{
-		Name:       ex,
+		Name:       Exchanges.RmqDirect,
 		Type:       ExchangeType.Direct,
 		Durable:    true,
 		AutoDelete: false,
@@ -101,7 +100,7 @@ func TestBindExchangeByQueue(t *testing.T) {
 	err := mq.BindQueueByExchange(BindQueueByExgConfig{
 		QueueName:    q.Name,
 		RoutingKey:   q.Name,
-		ExchangeName: ex,
+		ExchangeName: Exchanges.RmqDirect,
 		NoWait:       false,
 		Args:         &args,
 	})
@@ -114,10 +113,7 @@ func TestBindExchangeByQueue(t *testing.T) {
 func TestCreateProducer(t *testing.T) {
 	producer = NewProducer(
 		&mq,
-		WithProducerInit(ProducerInitConfig{
-			NameQueue:    "test",
-			ExchangeName: "test",
-		}),
+		WithRpc("replay"),
 	)
 }
 
@@ -128,7 +124,7 @@ func TestCreateConsumer(t *testing.T) {
 	consumer := NewConsumer(
 		&mq,
 		WithConsumerConfig(CreateConsumerConfig{
-			NameQueue: "test",
+			NameQueue: "replay",
 			Consumer:  "",
 			AutoAck:   false,
 			Exclusive: false,
@@ -143,7 +139,7 @@ func TestCreateConsumer(t *testing.T) {
 
 func TestSendMsgProducer(t *testing.T) {
 	msg := "test"
-	err := producer.Send(ex, "test", msg, "")
+	err := producer.Send(Exchanges.RmqDirect, "replay", msg, "")
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -166,7 +162,7 @@ func TestSendMsgProducer(t *testing.T) {
 func TestSendMsgByMethodProducer(t *testing.T) {
 	msg := "msg"
 	method := "method"
-	err := producer.Send(ex, "test", msg, method)
+	err := producer.Send(Exchanges.RmqDirect, "replay", msg, method)
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -189,7 +185,7 @@ func TestSendMsgByMethodProducer(t *testing.T) {
 
 func TestSendReplyMsg(t *testing.T) {
 	msg := "msg"
-	b, err := producer.SendReplyMsg(ex, "test", msg, "")
+	b, err := producer.SendReplyMsg(Exchanges.RmqDirect, "replay", msg, "")
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -239,7 +235,7 @@ func TestSendReplyMsgToService(t *testing.T) {
 	mq_Rmq_Service.BindQueueByExchange(BindQueueByExgConfig{
 		QueueName:    s,
 		RoutingKey:   s,
-		ExchangeName: ex,
+		ExchangeName: Exchanges.RmqDirect,
 		NoWait:       false,
 		Args:         &args,
 	})
@@ -270,7 +266,7 @@ func TestSendReplyMsgToService(t *testing.T) {
 	consumer_service.AddHandleFunc(nameFunc, createFoo)
 	consumer_service.Listen()
 
-	b, err := producer.SendReplyMsg(ex, s, sendMsg, nameFunc)
+	b, err := producer.SendReplyMsg(Exchanges.RmqDirect, s, sendMsg, nameFunc)
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -287,8 +283,6 @@ func TestSendReplyMsgToService(t *testing.T) {
 	if receivedMsg.Msg != createFoo([]byte{}) {
 		t.Fatalf("Not published message in queue")
 	}
-
-	// wg.Wait()
 }
 
 func createFoo(b []byte) interface{} {
