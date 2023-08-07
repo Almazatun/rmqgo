@@ -14,7 +14,6 @@ import (
 
 type Producer struct {
 	*Rmq
-	isInitializedRpc bool
 }
 
 type ProducerInitConfig struct {
@@ -73,7 +72,7 @@ func (p *Producer) Send(ex, rk string, msg interface{}, method string) error {
 }
 
 func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (res *[]byte, err error) {
-	if !p.isInitializedRpc {
+	if !p.Rmq.isInitializedRpc {
 		return nil, errors.New("Producer initialized with RPC mode to use SendReplayMsg")
 	}
 
@@ -126,14 +125,4 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 	}
 
 	return res, nil
-}
-
-func WithRpc(replayQueueName string) ProducerOption {
-	return func(p *Producer) {
-		if p.Rmq.replyQueue == nil {
-			p.Rmq.declareReplayQueue(replayQueueName)
-		}
-
-		p.isInitializedRpc = true
-	}
 }

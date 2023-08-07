@@ -14,9 +14,11 @@ type Rmq struct {
 	connection        *amqp.Connection
 	channel           *amqp.Channel
 	replyQueue        *amqp.Queue
+	replyQueueName    *string
 	topicQueue        *amqp.Queue
 	msgChan           chan []byte
 	isConnected       bool
+	isInitializedRpc  bool
 	correlationIdsMap map[string]string
 }
 
@@ -98,16 +100,26 @@ type BindQueueByExgConfig struct {
 	Args         *map[string]interface{}
 }
 
-func New() *Rmq {
-	return &Rmq{
+type RmqOption func(*Rmq)
+
+func New(options ...RmqOption) *Rmq {
+	rmq := &Rmq{
 		connection:        nil,
 		channel:           nil,
 		replyQueue:        nil,
+		replyQueueName:    nil,
 		topicQueue:        nil,
 		isConnected:       false,
+		isInitializedRpc:  false,
 		correlationIdsMap: make(map[string]string),
 		msgChan:           make(chan []byte),
 	}
+
+	for _, opt := range options {
+		opt(rmq)
+	}
+
+	return rmq
 }
 
 func (rmq *Rmq) Connect(config ConnectConfig) error {
@@ -130,6 +142,10 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 	}
 
 	rmq.channel = ch
+
+	if rmq.isInitializedRpc {
+		rmq.declareReplayQueue(*rmq.replyQueueName)
+	}
 
 	return nil
 }
@@ -342,4 +358,18 @@ func (rmq *Rmq) fillCreateQueueConfig(cf CreateQueueConfig) CreateQueueConfig {
 	}
 
 	return cf
+}
+
+func WithRpc(replayQueueName string) RmqOption {
+	if replayQueueName == "" {
+		log.Fatal("Replay queue name required")
+	}
+
+	return func(rmq *Rmq) {
+		if rmq.replyQueueName == nil {
+			rmq.replyQueueName = &replayQueueName
+		}
+
+		rmq.isInitializedRpc = true
+	}
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-var mq Rmq = *New()
+var mq Rmq = *New(WithRpc("replay"))
 var mq_Rmq_Service = *New()
 var user, pass, host, port string
 var q *amqp091.Queue
@@ -111,10 +111,7 @@ func TestBindExchangeByQueue(t *testing.T) {
 }
 
 func TestCreateProducer(t *testing.T) {
-	producer = NewProducer(
-		&mq,
-		WithRpc("replay"),
-	)
+	producer = NewProducer(&mq)
 }
 
 func TestCreateConsumer(t *testing.T) {
