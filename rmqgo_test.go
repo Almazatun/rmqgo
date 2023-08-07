@@ -242,7 +242,7 @@ func TestSendReplyMsgToService(t *testing.T) {
 	}
 
 	wg := &sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(1)
 
 	consumer_service = NewConsumer(
 		&mq_Rmq_Service,
