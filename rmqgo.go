@@ -11,10 +11,11 @@ import (
 )
 
 type Rmq struct {
-	connection        *amqp.Connection
-	channel           *amqp.Channel
-	replyQueue        *amqp.Queue
-	replyQueueName    *string
+	connection     *amqp.Connection
+	channel        *amqp.Channel
+	replyQueue     *amqp.Queue
+	replyQueueData *replayQueueData
+	// TODO
 	topicQueue        *amqp.Queue
 	msgChan           chan []byte
 	isConnected       bool
@@ -43,43 +44,9 @@ type CreateQueueConfig struct {
 	Args         *map[string]interface{}
 }
 
-type exchangeType struct {
-	Direct string
-	Topic  string
-	Fanout string
-}
-
-type exchanges struct {
-	RmqDirect  string
-	RmqTopic   string
-	RmqFanout  string
-	RmqHeaders string
-}
-
 type SendMsg struct {
 	Method string
 	Msg
-}
-
-type replayMsg struct {
-	Msg           interface{}
-	Method        string
-	CorrelationId string
-	ReplayTo      string
-	Exchange      string
-}
-
-var Exchanges = exchanges{
-	RmqDirect:  "rmq.direct",
-	RmqTopic:   "rmq.topic",
-	RmqFanout:  "rmq.fanout",
-	RmqHeaders: "rmq.headers",
-}
-
-var ExchangeType = exchangeType{
-	Direct: "direct",
-	Topic:  "topic",
-	Fanout: "fanout",
 }
 
 type CreateExchangeConfig struct {
@@ -102,13 +69,53 @@ type BindQueueByExgConfig struct {
 
 type RmqOption func(*Rmq)
 
+type replayQueueData struct {
+	name         string
+	exchangeType string
+	rk           string
+}
+
+type replayMsg struct {
+	Msg           interface{}
+	Method        string
+	CorrelationId string
+	ReplayTo      string
+	Exchange      string
+}
+
+type exchangeType struct {
+	Direct string
+	Topic  string
+	Fanout string
+}
+
+type exchanges struct {
+	RmqDirect  string
+	RmqTopic   string
+	RmqFanout  string
+	RmqHeaders string
+}
+
+var Exchanges = exchanges{
+	RmqDirect:  "rmq.direct",
+	RmqTopic:   "rmq.topic",
+	RmqFanout:  "rmq.fanout",
+	RmqHeaders: "rmq.headers",
+}
+
+var ExchangeType = exchangeType{
+	Direct: "direct",
+	Topic:  "topic",
+	Fanout: "fanout",
+}
+
 func New(options ...RmqOption) *Rmq {
 	rmq := &Rmq{
 		connection:        nil,
 		channel:           nil,
 		replyQueue:        nil,
-		replyQueueName:    nil,
 		topicQueue:        nil,
+		replyQueueData:    nil,
 		isConnected:       false,
 		isInitializedRpc:  false,
 		correlationIdsMap: make(map[string]string),
@@ -144,7 +151,7 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 	rmq.channel = ch
 
 	if rmq.isInitializedRpc {
-		rmq.declareReplayQueue(*rmq.replyQueueName)
+		rmq.declareReplayQueue(*rmq.replyQueueData)
 	}
 
 	return nil
@@ -288,12 +295,12 @@ func (rmq *Rmq) replay(input replayMsg) {
 	}
 }
 
-func (rmq *Rmq) declareReplayQueue(replayQueueName string) {
+func (rmq *Rmq) declareReplayQueue(replayQueue replayQueueData) {
 	var err error
 	args := make(map[string]interface{})
 
 	rmq.replyQueue, err = rmq.CreateQueue(CreateQueueConfig{
-		Name:         replayQueueName,
+		Name:         replayQueue.name,
 		DeleteUnused: false,
 		Exclusive:    false,
 		NoWait:       false,
@@ -306,9 +313,19 @@ func (rmq *Rmq) declareReplayQueue(replayQueueName string) {
 		log.Fatal(err)
 	}
 
+	var name string
+
+	if replayQueue.exchangeType == ExchangeType.Direct {
+		name = Exchanges.RmqDirect
+	}
+
+	if replayQueue.exchangeType == ExchangeType.Topic {
+		name = Exchanges.RmqTopic
+	}
+
 	err = rmq.CreateExchange(CreateExchangeConfig{
-		Name:       Exchanges.RmqDirect,
-		Type:       ExchangeType.Direct,
+		Name:       name,
+		Type:       replayQueue.exchangeType,
 		Durable:    true,
 		AutoDelete: false,
 		Internal:   false,
@@ -320,13 +337,23 @@ func (rmq *Rmq) declareReplayQueue(replayQueueName string) {
 		log.Fatal(err)
 	}
 
-	err = rmq.BindQueueByExchange(BindQueueByExgConfig{
+	bindQueueByExchange := BindQueueByExgConfig{
 		rmq.replyQueue.Name,
-		rmq.replyQueue.Name,
-		Exchanges.RmqDirect,
+		"",
+		name,
 		false,
 		&args,
-	})
+	}
+
+	if replayQueue.exchangeType == ExchangeType.Topic {
+		bindQueueByExchange.RoutingKey = rmq.replyQueueData.rk
+	}
+
+	if replayQueue.exchangeType == ExchangeType.Direct {
+		bindQueueByExchange.RoutingKey = rmq.replyQueue.Name
+	}
+
+	err = rmq.BindQueueByExchange(bindQueueByExchange)
 
 	if err != nil {
 		log.Fatal(err)
@@ -360,14 +387,48 @@ func (rmq *Rmq) fillCreateQueueConfig(cf CreateQueueConfig) CreateQueueConfig {
 	return cf
 }
 
-func WithRpc(replayQueueName string) RmqOption {
+func (rmq *Rmq) validateExchangeType(t string) {
+	if t == ExchangeType.Direct || ExchangeType.Topic == t || ExchangeType.Fanout == t {
+		return
+	}
+
+	log.Fatal("Invalid exchange type")
+}
+
+func WithRpc(replayQueueName, exchangeType string) RmqOption {
 	if replayQueueName == "" {
 		log.Fatal("Replay queue name required")
 	}
 
 	return func(rmq *Rmq) {
-		if rmq.replyQueueName == nil {
-			rmq.replyQueueName = &replayQueueName
+		rmq.validateExchangeType(exchangeType)
+		if rmq.replyQueueData == nil {
+
+			rmq.replyQueueData = &replayQueueData{
+				name:         replayQueueName,
+				exchangeType: exchangeType,
+				rk:           "",
+			}
+		}
+
+		rmq.isInitializedRpc = true
+	}
+}
+
+func WithTopicRpc(replayQueueName, exchangeType, rk string) RmqOption {
+	if replayQueueName == "" {
+		log.Fatal("Replay queue name required")
+	}
+
+	return func(rmq *Rmq) {
+		rmq.validateExchangeType(exchangeType)
+		if rmq.replyQueueData == nil {
+
+			rmq.replyQueueData = &replayQueueData{
+				name:         replayQueueName,
+				exchangeType: exchangeType,
+				rk:           rk,
+			}
 		}
 
 		rmq.isInitializedRpc = true

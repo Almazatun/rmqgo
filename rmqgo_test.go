@@ -11,7 +11,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-var mq Rmq = *New(WithRpc("replay"))
+var mq Rmq = *New(WithRpc("replay", ExchangeType.Direct))
 var mq_Rmq_Service = *New()
 var user, pass, host, port string
 var q *amqp091.Queue
@@ -278,6 +278,60 @@ func TestSendReplyMsgToService(t *testing.T) {
 	}
 
 	if receivedMsg.Msg != createFoo([]byte{}) {
+		t.Fatalf("Not published message in queue")
+	}
+}
+
+func TestSendMsgByTopic(t *testing.T) {
+	mq_Rmq_Topic := New(WithTopicRpc("logs_topic", ExchangeType.Topic, "#"))
+
+	config := ConnectConfig{
+		User: user,
+		Pass: pass,
+		Host: host,
+		Port: port,
+	}
+
+	mq_Rmq_Topic.Connect(config)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	consumer := NewConsumer(
+		mq_Rmq_Topic,
+		WithConsumerConfig(CreateConsumerConfig{
+			NameQueue: "logs_topic",
+			Consumer:  "",
+			AutoAck:   false,
+			Exclusive: false,
+			NoWait:    false,
+			NoLocal:   false,
+		}),
+		WithConsumerWaitGroup(wg),
+	)
+
+	consumer.Listen()
+
+	p := NewProducer(mq_Rmq_Topic)
+
+	msg := "log"
+	err := p.Send(Exchanges.RmqTopic, "logs_topic", msg, "")
+
+	if err != nil {
+		t.Fatalf("Failed to publish message")
+	}
+
+	b := <-mq_Rmq_Topic.msgChan
+
+	receivedMsg := SendMsg{}
+
+	err = json.Unmarshal(b, &receivedMsg)
+
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if receivedMsg.Msg != msg {
 		t.Fatalf("Not published message in queue")
 	}
 }
