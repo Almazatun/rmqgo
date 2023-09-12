@@ -2,6 +2,7 @@ package rmqgo
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -135,34 +136,26 @@ func (c *Consumer) Listen() {
 				continue
 			}
 
-			var resMas interface{}
+			// Replay msg body from created handler func by topic
+			replayBody := c.handleTopicFunc(msg.Method, d.Body)
 
-			if msg.Method != "" {
-				_, ok := c.handleFuncs[msg.Method]
-
-				if ok {
-					resMas = c.handleFuncs[msg.Method](d.Body)
-				}
-			}
-
+			// Check is correlation id from other service
 			_, ok := c.Rmq.correlationIdsMap[d.CorrelationId]
 
-			if d.CorrelationId != "" && msg.Method != "" && resMas != nil && !ok {
+			if c.isReplayMsg(msg.Method, replayBody, ok) {
 				c.Rmq.replay(replayMsg{
-					Msg:           resMas,
+					Msg:           replayBody,
 					Method:        msg.Method,
 					CorrelationId: d.CorrelationId,
 					ReplayTo:      d.ReplyTo,
 					Exchange:      d.Exchange,
 				})
 			} else {
-
-				if ok {
-					delete(c.Rmq.correlationIdsMap, d.CorrelationId)
-				}
-
+				delete(c.Rmq.correlationIdsMap, d.CorrelationId)
 				c.Rmq.msgChan <- d.Body
 			}
+
+			// https://www.rabbitmq.com/confirms.html
 			d.Ack(true)
 		}
 	}()
@@ -173,13 +166,35 @@ func (c *Consumer) Listen() {
 	}
 }
 
-func (c *Consumer) AddHandleFunc(method string, f func([]byte) interface{}) {
+func (c *Consumer) AddHandleTopicFunc(method string, f func([]byte) interface{}) error {
 	_, ok := c.handleFuncs[method]
 
 	if ok {
-		log.Printf("Handler func already exists in map by method %s", method)
-		return
+		errMsg := "Already exists topic handler by " + method
+		return errors.New(errMsg)
 	}
 
 	c.handleFuncs[method] = f
+
+	return nil
+}
+
+func (c *Consumer) isReplayMsg(method string, replayBody interface{}, isInCorrMap bool) bool {
+	if method != "" && replayBody != nil && !isInCorrMap {
+		return true
+	}
+
+	return false
+}
+
+func (c *Consumer) handleTopicFunc(method string, body []byte) (res interface{}) {
+	if method != "" {
+		_, ok := c.handleFuncs[method]
+
+		if ok {
+			res = c.handleFuncs[method](body)
+		}
+	}
+
+	return res
 }

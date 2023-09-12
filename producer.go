@@ -119,10 +119,8 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 
 		return nil, err
 	}
-	for msg := range p.Rmq.msgChan {
-		res = &msg
-		break
-	}
+
+	res = p.Rmq.listenReplayMsg()
 
 	return res, nil
 }
