@@ -10,17 +10,199 @@ Inside a Go module:
 go get github.com/Almazatun/rmqgo
 ```
 
-## Connect rabbitMQ
+## Connect to rabbitMQ
 
 ```go
 import (rmqgo "github.com/Almazatun/rmqgo")
 
-    config := rmqgo.ConnectConfig{
-		User: "user",
-		Pass: "pass",
-		Host: "host",
-		Port: "port",
-	}
+rmq := rmqgo.New()
 
-	err := rmqgo.Connect(config)
+config := rmqgo.ConnectConfig{
+	User: "user",
+	Pass: "pass",
+	Host: "host",
+	Port: "port",
+}
+
+err := rmq.Connect(config)
+
+if err != nil {
+	// some action
+}
+```
+
+### Optional params when initialize `rmqgo.New()`
+
+With RPC mode for `request and replay pattern`
+
+```go
+rmqgo.New(rmqgo.WithRpc(replayQueueName, exchangeType))
+```
+
+With topic RPC
+
+```go
+rmqgo.New(rmqgo.WithTopicRpc(replayQueueName, exchangeType, routingKey))
+```
+
+### Create channel
+
+```go
+ch, err := rmq.CreateChannel()
+
+if err != nil {
+	// some action
+}
+```
+
+### Create queue
+
+```go
+args := make(map[string]interface{})
+
+q, err := rmq.CreateQueue(rmqgo.CreateQueueConfig{
+	Name:         "some_name",
+	DeleteUnused: false,
+	Exclusive:    false,
+	NoWait:       false,
+	Durable:      true,
+	Args:         &args,
+})
+
+if err != nil {
+	// some action
+}
+
+```
+
+### Create exchange
+
+Exchanges
+
+```bash
+RmqDirect
+RmqTopic
+RmqFanout
+RmqHeaders
+```
+
+Exchange types
+
+```bash
+Direct
+Topic
+Fanout
+```
+
+```go
+args := make(map[string]interface{})
+
+err := rmq.CreateExchange(rmqgo.CreateExchangeConfig{
+	Name:       rmqgo.Exchanges.RmqDirect,
+	Type:       rmqgo.ExchangeType.Direct,
+	Durable:    true,
+	AutoDelete: false,
+	Internal:   false,
+	NoWait:     false,
+	Args:       &args,
+})
+
+if err != nil {
+	// some action
+}
+```
+
+### Bind exchange by created queue
+
+```go
+args := make(map[string]interface{})
+
+err := rmq.BindQueueByExchange(rmqgo.BindQueueByExgConfig{
+	QueueName:    "some_name",
+	RoutingKey:   "some_key",
+	ExchangeName: Exchanges.RmqDirect,
+	NoWait:       false,
+	Args:         &args,
+})
+
+if err != nil {
+	// some action
+}
+```
+
+## Create `producer`
+
+```go
+producer = rmqgo.NewProducer(&rmq)
+```
+
+### Send message
+
+```go
+err := producer.Send(Exchanges.RmqDirect, routingKey, msg, method)
+
+if err != nil {
+	// some action
+}
+
+```
+
+### Send message with reply
+
+```go
+b, err := producer.SendReplyMsg(Exchanges.RmqDirect, routingKey, msg, method)
+
+if err != nil {
+	// some action
+}
+
+// msg - is your own type SomeName struct { someFields:... }
+
+err = json.Unmarshal(*b, &msg)
+
+if err != nil {
+	// some action
+}
+
+```
+
+## Create `consumer`
+
+```go
+consumer := rmqgo.NewConsumer(
+		&rmq,
+		rmqgo.WithConsumerConfig(rmqgo.CreateConsumerConfig{
+			NameQueue: "some_name",
+			Consumer:  "some_value",
+			AutoAck:   false,
+			Exclusive: false,
+			NoWait:    false,
+			NoLocal:   false,
+		}),
+	)
+
+consumer.Listen()
+```
+
+### Optional params when initialize `rmqgo.NewConsumer(...)`
+
+With `Wait group`
+
+```go
+wg := &sync.WaitGroup{}
+wg.Add(1)
+
+rmqgo.NewConsumer(*rmq, rmqgo.WithConsumerWaitGroup(wg))
+```
+
+With `Consumer Args`
+
+```go
+rmqgo.NewConsumer(*rmq, rmqgo.WithConsumerArgs(rmqgo.ConsumerArgs{
+	XDeadLetterExc        *""
+	XDeadLetterRoutingKey *""
+	Ttl                   *int
+	XExpires              *int
+	XMaxPriority          *int
+}))
 ```
