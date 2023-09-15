@@ -151,8 +151,12 @@ func (c *Consumer) Listen() {
 					Exchange:      d.Exchange,
 				})
 			} else {
-				delete(c.Rmq.correlationIdsMap, d.CorrelationId)
-				c.Rmq.msgChan <- d.Body
+				if ok {
+					delete(c.Rmq.correlationIdsMap, d.CorrelationId)
+					c.Rmq.replayMsgChan <- d.Body
+				} else {
+					c.Rmq.msgChan <- d.Body
+				}
 			}
 
 			// https://www.rabbitmq.com/confirms.html
@@ -179,8 +183,8 @@ func (c *Consumer) AddHandleTopicFunc(method string, f func([]byte) interface{})
 	return nil
 }
 
-func (c *Consumer) isReplayMsg(method string, replayBody interface{}, isInCorrMap bool) bool {
-	if method != "" && replayBody != nil && !isInCorrMap {
+func (c *Consumer) isReplayMsg(method string, replayBody interface{}, correlationIdsMap bool) bool {
+	if method != "" && replayBody != nil && !correlationIdsMap {
 		return true
 	}
 

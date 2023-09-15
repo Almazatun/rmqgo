@@ -18,6 +18,7 @@ type Rmq struct {
 	// TODO
 	topicQueue        *amqp.Queue
 	msgChan           chan []byte
+	replayMsgChan     chan []byte
 	isConnected       bool
 	isInitializedRpc  bool
 	correlationIdsMap map[string]string
@@ -120,6 +121,7 @@ func New(options ...RmqOption) *Rmq {
 		isInitializedRpc:  false,
 		correlationIdsMap: make(map[string]string),
 		msgChan:           make(chan []byte),
+		replayMsgChan:     make(chan []byte),
 	}
 
 	for _, opt := range options {
@@ -398,7 +400,7 @@ func (rmq *Rmq) validateExchangeType(t string) {
 func (rmq *Rmq) listenReplayMsg() *[]byte {
 	for {
 		select {
-		case msg := <-rmq.msgChan:
+		case msg := <-rmq.replayMsgChan:
 			return &msg
 		}
 	}
