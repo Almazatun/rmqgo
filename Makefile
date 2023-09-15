@@ -8,5 +8,5 @@ build:
 
 test:
 	@echo 'Testing lib'
-	go test -v -timeout 30s -coverprofile=cover.out -cover ./...
+	go test -v -timeout 10s -coverprofile=cover.out -cover ./...
 	go tool cover -func=cover.out
