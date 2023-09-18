@@ -100,6 +100,7 @@ func WithConsumerArgs(config ConsumerArgs) ConsumerOption {
 }
 
 func (c *Consumer) Listen() {
+	// Make able to run not main goroutine if need to use with HTTP
 	if c.wg != nil {
 		defer c.wg.Done()
 	}
@@ -121,8 +122,6 @@ func (c *Consumer) Listen() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	runnerChan := make(chan bool)
 
 	go func() {
 		for d := range msgs {
@@ -165,6 +164,8 @@ func (c *Consumer) Listen() {
 	}()
 
 	if c.wg == nil {
+		runnerChan := make(chan bool)
+
 		log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
 		<-runnerChan
 	}
