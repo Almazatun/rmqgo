@@ -399,15 +399,6 @@ func (rmq *Rmq) validateExchangeType(exType string) {
 	log.Fatal("Invalid exchange type")
 }
 
-func (rmq *Rmq) listenReplayMsg() *[]byte {
-	for {
-		select {
-		case msg := <-rmq.replayMsgChan:
-			return &msg
-		}
-	}
-}
-
 func WithRpc(replayQueueName, exchangeType string) RmqOption {
 	if replayQueueName == "" {
 		log.Fatal("Replay queue name required")

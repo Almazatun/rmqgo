@@ -261,7 +261,7 @@ func TestSendReplyMsgToService(t *testing.T) {
 	sendMsg := "msg"
 
 	consumer_service.AddHandleTopicFunc(nameFunc, createFoo)
-	consumer_service.Listen()
+	go consumer_service.Listen()
 
 	b, err := producer.SendReplyMsg(Exchanges.RmqDirect, s, sendMsg, nameFunc)
 
