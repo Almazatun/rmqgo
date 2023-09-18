@@ -120,7 +120,16 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 		return nil, err
 	}
 
-	res = p.Rmq.listenReplayMsg()
+	res = p.listenReplayMsg()
 
 	return res, nil
+}
+
+func (p *Producer) listenReplayMsg() *[]byte {
+	for {
+		select {
+		case msg := <-p.Rmq.replayMsgChan:
+			return &msg
+		}
+	}
 }

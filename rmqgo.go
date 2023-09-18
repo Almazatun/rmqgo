@@ -389,8 +389,10 @@ func (rmq *Rmq) fillCreateQueueConfig(cf CreateQueueConfig) CreateQueueConfig {
 	return cf
 }
 
-func (rmq *Rmq) validateExchangeType(t string) {
-	if t == ExchangeType.Direct || ExchangeType.Topic == t || ExchangeType.Fanout == t {
+func (rmq *Rmq) validateExchangeType(exType string) {
+	isValidType := exType == ExchangeType.Direct || exType == ExchangeType.Topic || ExchangeType.Fanout == exType
+
+	if isValidType {
 		return
 	}
 
