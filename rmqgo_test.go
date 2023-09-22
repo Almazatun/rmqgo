@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 )
 
-var mq Rmq = *New(WithRpc("replay", ExchangeType.Direct))
+var mq Rmq
 var mq_Rmq_Service = *New()
 var user, pass, host, port string
 var q *amqp091.Queue
@@ -23,6 +24,14 @@ func loadENVs() {
 
 	if err != nil {
 		fmt.Println("Error loading .env variables")
+	}
+}
+
+func TestInitRmq(t *testing.T) {
+	mq = *New(WithRpc("replay", ExchangeType.Direct))
+
+	if reflect.ValueOf(mq).IsZero() {
+		t.Fatalf("Rmq not initialized")
 	}
 }
 
@@ -112,6 +121,10 @@ func TestBindExchangeByQueue(t *testing.T) {
 
 func TestCreateProducer(t *testing.T) {
 	producer = NewProducer(&mq)
+
+	if reflect.ValueOf(producer).IsZero() {
+		t.Fatalf("Rmq producer not initialized")
+	}
 }
 
 func TestCreateConsumer(t *testing.T) {
@@ -130,6 +143,10 @@ func TestCreateConsumer(t *testing.T) {
 		}),
 		WithConsumerWaitGroup(wg),
 	)
+
+	if reflect.ValueOf(producer).IsZero() {
+		t.Fatalf("Rmq consumer not initialized")
+	}
 
 	consumer.Listen()
 }

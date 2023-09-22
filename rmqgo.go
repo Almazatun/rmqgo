@@ -137,7 +137,6 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 	c, err := amqp.Dial("amqp://" + dt.User + ":" + dt.Pass + "@" + dt.Host + dt.Port)
 
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
@@ -146,7 +145,6 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 	ch, err := rmq.CreateChannel()
 
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
@@ -180,7 +178,6 @@ func (rmq *Rmq) CreateQueue(config CreateQueueConfig) (q *amqp.Queue, err error)
 	)
 
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 
@@ -193,7 +190,6 @@ func (rmq *Rmq) CreateChannel() (c *amqp.Channel, err error) {
 	ch, err := rmq.connection.Channel()
 
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 
@@ -221,7 +217,6 @@ func (rmq *Rmq) CreateExchange(config CreateExchangeConfig) error {
 	)
 
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
@@ -243,7 +238,6 @@ func (rmq *Rmq) BindQueueByExchange(config BindQueueByExgConfig) error {
 	)
 
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 

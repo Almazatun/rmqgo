@@ -3,7 +3,6 @@ package rmqgo
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 
@@ -125,13 +124,13 @@ func (c *Consumer) Listen() {
 
 	go func() {
 		for d := range msgs {
-			// fmt.Printf("Received a message: %s", d.Body)
+			// log.Printf("Received a message: %s", d.Body)
 
 			msg := consumerMsg{}
 			err := json.Unmarshal(d.Body, &msg)
 
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 				continue
 			}
 
