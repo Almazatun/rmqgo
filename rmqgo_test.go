@@ -148,7 +148,7 @@ func TestCreateConsumer(t *testing.T) {
 		t.Fatalf("Rmq consumer not initialized")
 	}
 
-	consumer.Listen()
+	go consumer.Listen()
 }
 
 func TestSendMsgProducer(t *testing.T) {
@@ -276,8 +276,10 @@ func TestSendReplyMsgToService(t *testing.T) {
 
 	nameFunc := "createFoo"
 	sendMsg := "msg"
+	topicsFuncs := make(map[string]func([]byte) interface{})
+	topicsFuncs[nameFunc] = createFoo
 
-	consumer_service.AddHandleTopicFunc(nameFunc, createFoo)
+	consumer_service.AddTopicsFuncs(topicsFuncs)
 	go consumer_service.Listen()
 
 	b, err := producer.SendReplyMsg(Exchanges.RmqDirect, s, sendMsg, nameFunc)
@@ -327,7 +329,7 @@ func TestSendMsgByTopic(t *testing.T) {
 		WithConsumerWaitGroup(wg),
 	)
 
-	consumer.Listen()
+	go consumer.Listen()
 
 	p := NewProducer(mq_Rmq_Topic)
 
@@ -350,6 +352,26 @@ func TestSendMsgByTopic(t *testing.T) {
 
 	if receivedMsg.Msg != msg {
 		t.Fatalf("Not published message in queue")
+	}
+
+	err = mq_Rmq_Topic.Close()
+
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+}
+
+func TestCloseRmq(t *testing.T) {
+	err := mq.Close()
+
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	err = mq_Rmq_Service.Close()
+
+	if err != nil {
+		t.Fatalf(err.Error())
 	}
 }
 

@@ -122,19 +122,20 @@ func (c *Consumer) Listen() {
 		log.Fatal(err)
 	}
 
-	go func() {
-		for d := range msgs {
-			// log.Printf("Received a message: %s", d.Body)
+	for d := range msgs {
+		// log.Printf("Received a message: %s", d.Body)
 
-			msg := consumerMsg{}
-			err := json.Unmarshal(d.Body, &msg)
+		msg := consumerMsg{}
+		err := json.Unmarshal(d.Body, &msg)
 
-			if err != nil {
-				log.Println(err)
-				continue
-			}
+		if err != nil {
+			log.Println(err)
+			continue
+		}
 
+		go func() {
 			// Replay msg body from created handler func by topic
+			// Only read process from map without write process for than no need to use mutex
 			replayBody := c.handleTopicFunc(msg.Method, d.Body)
 
 			// Check is correlation id from other service
@@ -156,11 +157,11 @@ func (c *Consumer) Listen() {
 					c.Rmq.msgChan <- d.Body
 				}
 			}
+		}()
 
-			// https://www.rabbitmq.com/confirms.html
-			d.Ack(true)
-		}
-	}()
+		// https://www.rabbitmq.com/confirms.html
+		d.Ack(true)
+	}
 
 	if c.wg == nil {
 		runnerChan := make(chan bool)
@@ -170,15 +171,17 @@ func (c *Consumer) Listen() {
 	}
 }
 
-func (c *Consumer) AddHandleTopicFunc(method string, f func([]byte) interface{}) error {
-	_, ok := c.handleFuncs[method]
+func (c *Consumer) AddTopicsFuncs(topicsFuncs map[string]func([]byte) interface{}) error {
+	for method, f := range topicsFuncs {
+		_, ok := c.handleFuncs[method]
 
-	if ok {
-		errMsg := "Already exists topic handler by " + method
-		return errors.New(errMsg)
+		if ok {
+			errMsg := "Already exists topic handler by " + method
+			return errors.New(errMsg)
+		}
+
+		c.handleFuncs[method] = f
 	}
-
-	c.handleFuncs[method] = f
 
 	return nil
 }

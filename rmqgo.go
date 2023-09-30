@@ -250,6 +250,9 @@ func (rmq *Rmq) Close() error {
 		return errors.New(errorMsg)
 	}
 
+	close(rmq.msgChan)
+	close(rmq.replayMsgChan)
+
 	err := rmq.channel.Close()
 
 	if err != nil {
