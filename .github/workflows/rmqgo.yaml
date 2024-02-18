@@ -5,6 +5,7 @@ on:
     branches: [main]
 
 env:
+  APP_ENV: ${{ secrets.APP_ENV }}
   RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
   RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
   RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
@@ -21,6 +22,7 @@ jobs:
       rabbitmq:
         image: rabbitmq
         env:
+          APP_ENV: ${{ env.APP_ENV }}
           RABBITMQ_DEFAULT_USER: ${{ env.RABBITMQ_USER }}
           RABBITMQ_DEFAULT_PASS: ${{ env.RABBITMQ_PASS }}
         ports:
@@ -42,6 +44,7 @@ jobs:
       - name: Run rmqgo tests
         run: make test
         env:
+          APP_ENV: ${{ env.APP_ENV }}
           RABBITMQ_HOST: ${{ env.RABBITMQ_HOST }}
           RABBITMQ_USER: ${{ env.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ env.RABBITMQ_PASS }}
