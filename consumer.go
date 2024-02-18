@@ -18,7 +18,7 @@ type Consumer struct {
 	msg         chan amqp.Delivery
 }
 
-type ConsumerOption func(*Consumer)
+type consumerOption func(*Consumer)
 
 type ConsumerArgs struct {
 	XDeadLetterExc        *string
@@ -42,7 +42,7 @@ type consumerMsg struct {
 	Msg    interface{}
 }
 
-func NewConsumer(rmq *Rmq, options ...ConsumerOption) *Consumer {
+func NewConsumer(rmq *Rmq, options ...consumerOption) *Consumer {
 	consumer := &Consumer{
 		Rmq:         rmq,
 		handleFuncs: make(map[string]func([]byte) interface{}),
@@ -55,7 +55,7 @@ func NewConsumer(rmq *Rmq, options ...ConsumerOption) *Consumer {
 	return consumer
 }
 
-func WithConsumerConfig(config CreateConsumerConfig) ConsumerOption {
+func WithConsumerConfig(config CreateConsumerConfig) consumerOption {
 	return func(c *Consumer) {
 		c.config = config
 	}
@@ -63,14 +63,14 @@ func WithConsumerConfig(config CreateConsumerConfig) ConsumerOption {
 
 // Make able to run in other thread when init Consumer
 // It can be used if need to run rmq service with http
-func WithConsumerWaitGroup(wg *sync.WaitGroup) ConsumerOption {
+func WithConsumerWaitGroup(wg *sync.WaitGroup) consumerOption {
 	return func(c *Consumer) {
 		c.wg = wg
 	}
 }
 
 // Consumer
-func WithConsumerArgs(config ConsumerArgs) ConsumerOption {
+func WithConsumerArgs(config ConsumerArgs) consumerOption {
 	args := amqp.Table{}
 
 	if config.Ttl != nil {
@@ -135,10 +135,10 @@ func (c *Consumer) Listen() {
 
 		go func() {
 			// Replay msg body from created handler func by topic
-			// Only read process from map without write process for than no need to use mutex
+			// Only read process from map without write process for that no need to use mutex
 			replayBody := c.handleTopicFunc(msg.Method, d.Body)
 
-			// Check is correlation id from other service
+			// Check correlation id from other service
 			_, ok := c.Rmq.correlationIdsMap[d.CorrelationId]
 
 			if c.isReplayMsg(msg.Method, replayBody, ok) {
@@ -186,8 +186,8 @@ func (c *Consumer) AddTopicsFuncs(topicsFuncs map[string]func([]byte) interface{
 	return nil
 }
 
-func (c *Consumer) isReplayMsg(method string, replayBody interface{}, correlationIdsMap bool) bool {
-	if method != "" && replayBody != nil && !correlationIdsMap {
+func (c *Consumer) isReplayMsg(method string, replayBody interface{}, isCorrelationIdInMap bool) bool {
+	if method != "" && replayBody != nil && !isCorrelationIdInMap {
 		return true
 	}
 

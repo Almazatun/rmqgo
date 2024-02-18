@@ -21,9 +21,9 @@ type ProducerInitConfig struct {
 	ExchangeName string
 }
 
-type ProducerOption func(*Producer)
+type producerOption func(*Producer)
 
-func NewProducer(rmq *Rmq, options ...ProducerOption) *Producer {
+func NewProducer(rmq *Rmq, options ...producerOption) *Producer {
 	producer := &Producer{
 		Rmq: rmq,
 	}

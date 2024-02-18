@@ -13,6 +13,9 @@ env:
 jobs:
   audit:
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        go-version: ["1.20", "1.21", "1.22.x"]
 
     services:
       rabbitmq:
@@ -28,19 +31,18 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.19.x'
+          go-version: ${{ matrix.go-version }}
 
-      - name: Install dependencies
+      - name: Install rmqgo dependencies
         run: make install
 
-      - name: Build
+      - name: Build rmqgo
         run: make build
 
-      - name: Run test
+      - name: Run rmqgo tests
         run: make test
         env:
           RABBITMQ_HOST: ${{ env.RABBITMQ_HOST }}
           RABBITMQ_USER: ${{ env.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ env.RABBITMQ_PASS }}
           RABBITMQ_PORT: ${{ env.RABBITMQ_PORT }}
-        

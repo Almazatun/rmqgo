@@ -124,6 +124,7 @@ func New(options ...RmqOption) *Rmq {
 		replayMsgChan:     make(chan []byte),
 	}
 
+	// init optional settings
 	for _, opt := range options {
 		opt(rmq)
 	}
@@ -132,7 +133,7 @@ func New(options ...RmqOption) *Rmq {
 }
 
 func (rmq *Rmq) Connect(config ConnectConfig) error {
-	dt := rmq.fillConnectionConfig(config)
+	dt := fillConnectionConfig(config)
 
 	c, err := amqp.Dial("amqp://" + dt.User + ":" + dt.Pass + "@" + dt.Host + dt.Port)
 
@@ -141,6 +142,7 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 	}
 
 	rmq.connection = c
+
 	rmq.isConnected = true
 	ch, err := rmq.CreateChannel()
 
@@ -159,11 +161,10 @@ func (rmq *Rmq) Connect(config ConnectConfig) error {
 
 func (rmq *Rmq) CreateQueue(config CreateQueueConfig) (q *amqp.Queue, err error) {
 	if rmq.channel == nil {
-		errorMsg := "Channel not initialized to create queue"
-		return nil, errors.New(errorMsg)
+		return nil, errors.New("Channel not initialized to create queue")
 	}
 
-	dt := rmq.fillCreateQueueConfig(config)
+	dt := fillCreateQueueConfig(config)
 
 	args := amqp.Table{}
 	args["x-message-ttl"] = dt.MsgTtl
@@ -185,7 +186,7 @@ func (rmq *Rmq) CreateQueue(config CreateQueueConfig) (q *amqp.Queue, err error)
 }
 
 func (rmq *Rmq) CreateChannel() (c *amqp.Channel, err error) {
-	rmq.checkConnection()
+	checkConnection(rmq)
 
 	ch, err := rmq.connection.Channel()
 
@@ -258,6 +259,7 @@ func (rmq *Rmq) Close() error {
 	if err != nil {
 		return err
 	}
+
 	err = rmq.connection.Close()
 
 	if err != nil {
@@ -268,7 +270,8 @@ func (rmq *Rmq) Close() error {
 }
 
 func (rmq *Rmq) replay(input replayMsg) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeoutDurationTimePubMsg := time.Duration(5)
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutDurationTimePubMsg*time.Second)
 	defer cancel()
 
 	b, err := json.Marshal(SendMsg{Msg: input.Msg, Method: input.Method})
@@ -337,11 +340,11 @@ func (rmq *Rmq) declareReplayQueue(replayQueue replayQueueData) {
 	}
 
 	bindQueueByExchange := BindQueueByExgConfig{
-		rmq.replyQueue.Name,
-		"",
-		name,
-		false,
-		&args,
+		QueueName:    replayQueue.name,
+		RoutingKey:   "",
+		ExchangeName: name,
+		NoWait:       false,
+		Args:         &args,
 	}
 
 	if replayQueue.exchangeType == ExchangeType.Topic {
@@ -359,50 +362,21 @@ func (rmq *Rmq) declareReplayQueue(replayQueue replayQueueData) {
 	}
 }
 
-func (rmq *Rmq) checkConnection() {
+func checkConnection(rmq *Rmq) {
 	if !rmq.isConnected {
-		log.Fatal("RabbitMQ not connected")
+		log.Fatal("Rmqgo is not connected to rabbitmq")
 	}
 }
 
-func (rmq *Rmq) fillConnectionConfig(cf ConnectConfig) ConnectConfig {
-	if cf.Port != "" {
-		cf.Port = ":" + cf.Port + "/"
-	}
-
-	return cf
-}
-
-func (rmq *Rmq) fillCreateQueueConfig(cf CreateQueueConfig) CreateQueueConfig {
-	if cf.MsgTtl == nil || *cf.MsgTtl < 0 {
-		ttl := 30_000
-		cf.MsgTtl = &ttl
-	}
-
-	if cf.Name == "" {
-		log.Fatal("Queue name required")
-	}
-
-	return cf
-}
-
-func (rmq *Rmq) validateExchangeType(exType string) {
-	isValidType := exType == ExchangeType.Direct || exType == ExchangeType.Topic || ExchangeType.Fanout == exType
-
-	if isValidType {
-		return
-	}
-
-	log.Fatal("Invalid exchange type")
-}
-
+// Optionals
 func WithRpc(replayQueueName, exchangeType string) RmqOption {
 	if replayQueueName == "" {
 		log.Fatal("Replay queue name required")
 	}
 
 	return func(rmq *Rmq) {
-		rmq.validateExchangeType(exchangeType)
+		validateExchangeType(exchangeType)
+
 		if rmq.replyQueueData == nil {
 
 			rmq.replyQueueData = &replayQueueData{
@@ -422,7 +396,8 @@ func WithTopicRpc(replayQueueName, exchangeType, rk string) RmqOption {
 	}
 
 	return func(rmq *Rmq) {
-		rmq.validateExchangeType(exchangeType)
+		validateExchangeType(exchangeType)
+
 		if rmq.replyQueueData == nil {
 
 			rmq.replyQueueData = &replayQueueData{
@@ -434,4 +409,37 @@ func WithTopicRpc(replayQueueName, exchangeType, rk string) RmqOption {
 
 		rmq.isInitializedRpc = true
 	}
+}
+
+func fillCreateQueueConfig(cf CreateQueueConfig) CreateQueueConfig {
+	defaultMsgTtl := 30_000
+
+	if cf.MsgTtl == nil || *cf.MsgTtl < 0 {
+		ttl := defaultMsgTtl
+		cf.MsgTtl = &ttl
+	}
+
+	if cf.Name == "" {
+		log.Fatal("Queue name required")
+	}
+
+	return cf
+}
+
+func fillConnectionConfig(cf ConnectConfig) ConnectConfig {
+	if cf.Port != "" {
+		cf.Port = ":" + cf.Port + "/"
+	}
+
+	return cf
+}
+
+func validateExchangeType(exType string) {
+	isValidType := exType == ExchangeType.Direct || exType == ExchangeType.Topic || ExchangeType.Fanout == exType
+
+	if isValidType {
+		return
+	}
+
+	log.Fatal("Invalid exchange type")
 }
