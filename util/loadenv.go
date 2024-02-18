@@ -15,7 +15,7 @@ type EnvsConfig struct {
 }
 
 func GetENVs() EnvsConfig {
-	err := godotenv.Load(".env")
+	err := godotenv.Load("../.env")
 
 	if err != nil {
 		log.Fatalln("Error loading .env variables", err)
