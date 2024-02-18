@@ -25,6 +25,11 @@ func initRmqgo(t *testing.T) {
 
 func TestCreateProducer(t *testing.T) {
 	envs := util.GetENVs()
+
+	if envs == nil {
+		t.Fatalf("Rmqgo envs not set")
+	}
+
 	config := ConnectConfig{User: envs.User, Pass: envs.Pass, Host: envs.Host, Port: envs.Port}
 
 	initRmqgo(t)
@@ -141,6 +146,11 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 	var consumerService *Consumer
 
 	envs := util.GetENVs()
+
+	if envs == nil {
+		t.Fatalf("Rmqgo envs not set")
+	}
+
 	config := ConnectConfig{User: envs.User, Pass: envs.Pass, Host: envs.Host, Port: envs.Port}
 
 	err := rmqgoOtherService.Connect(config)
@@ -220,6 +230,10 @@ func TestSendMsgByTopic(t *testing.T) {
 
 	envs := util.GetENVs()
 	config := ConnectConfig{User: envs.User, Pass: envs.Pass, Host: envs.Host, Port: envs.Port}
+
+	if envs == nil {
+		t.Fatalf("Rmqgo envs not set")
+	}
 
 	rmqgoTopic.Connect(config)
 

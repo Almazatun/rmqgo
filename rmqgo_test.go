@@ -26,6 +26,10 @@ func TestConnection(t *testing.T) {
 	envs := util.GetENVs()
 	config := ConnectConfig{User: envs.User, Pass: envs.Pass, Host: envs.Host, Port: envs.Port}
 
+	if envs == nil {
+		t.Fatalf("Rmqgo envs not set")
+	}
+
 	err := mq.Connect(config)
 
 	if err != nil {

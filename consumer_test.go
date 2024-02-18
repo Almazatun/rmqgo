@@ -16,6 +16,11 @@ var testQueue = "test_test"
 
 func TestCreateConsumer(t *testing.T) {
 	envs := util.GetENVs()
+
+	if envs == nil {
+		t.Fatalf("Rmqgo envs not set")
+	}
+
 	config := ConnectConfig{User: envs.User, Pass: envs.Pass, Host: envs.Host, Port: envs.Port}
 
 	rmqgoConsumer = *New()
