@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"reflect"
-	"sync"
 	"testing"
 
 	"github.com/Almazatun/rmqgo/util"
@@ -71,9 +70,6 @@ func TestCreateConsumer(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
 	consumer = NewConsumer(
 		&rmqgoConsumer,
 		WithConsumerConfig(CreateConsumerConfig{
@@ -84,7 +80,7 @@ func TestCreateConsumer(t *testing.T) {
 			NoWait:    false,
 			NoLocal:   false,
 		}),
-		WithConsumerWaitGroup(wg),
+		WithHttpConsumer(),
 	)
 
 	if reflect.ValueOf(consumer).IsZero() {

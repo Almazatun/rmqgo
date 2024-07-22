@@ -3,7 +3,6 @@ package rmqgo
 import (
 	"encoding/json"
 	"reflect"
-	"sync"
 	"testing"
 
 	"github.com/Almazatun/rmqgo/util"
@@ -50,8 +49,6 @@ func TestCreateProducer(t *testing.T) {
 }
 
 func createConsumerListener(t *testing.T) {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
 
 	testConsumer = NewConsumer(
 		&rmqgoProducer,
@@ -63,7 +60,7 @@ func createConsumerListener(t *testing.T) {
 			NoWait:    false,
 			NoLocal:   false,
 		}),
-		WithConsumerWaitGroup(wg),
+		WithHttpConsumer(),
 	)
 
 	if reflect.ValueOf(producer).IsZero() {
@@ -182,9 +179,6 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 		t.Fatalf("Failed to create queue")
 	}
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
 	consumerService = NewConsumer(
 		&rmqgoOtherService,
 		WithConsumerConfig(CreateConsumerConfig{
@@ -195,7 +189,7 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 			NoWait:    false,
 			NoLocal:   false,
 		}),
-		WithConsumerWaitGroup(wg),
+		WithHttpConsumer(),
 	)
 
 	nameFunc := "createFoo"
@@ -237,9 +231,6 @@ func TestSendMsgByTopic(t *testing.T) {
 
 	rmqgoTopic.Connect(config)
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
 	testConsumer := NewConsumer(
 		rmqgoTopic,
 		WithConsumerConfig(CreateConsumerConfig{
@@ -250,7 +241,7 @@ func TestSendMsgByTopic(t *testing.T) {
 			NoWait:    false,
 			NoLocal:   false,
 		}),
-		WithConsumerWaitGroup(wg),
+		WithHttpConsumer(),
 	)
 
 	go testConsumer.Listen()

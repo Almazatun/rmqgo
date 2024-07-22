@@ -186,13 +186,10 @@ consumer.Listen()
 
 ### Optional params when initialize `rmqgo.NewConsumer(...)`
 
-With `Wait group`
+With `HttpConsumer`
 
 ```go
-wg := &sync.WaitGroup{}
-wg.Add(1)
-
-rmqgo.NewConsumer(*rmq, rmqgo.WithConsumerWaitGroup(wg))
+rmqgo.NewConsumer(*rmq, rmqgo.WithHttpConsumer())
 ```
 
 With `Consumer Args`

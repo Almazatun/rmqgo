@@ -63,9 +63,9 @@ func WithConsumerConfig(config CreateConsumerConfig) consumerOption {
 
 // Make able to run in other thread when init Consumer
 // It can be used if need to run rmq service with http
-func WithConsumerWaitGroup(wg *sync.WaitGroup) consumerOption {
+func WithHttpConsumer() consumerOption {
 	return func(c *Consumer) {
-		c.wg = wg
+		c.wg = &sync.WaitGroup{}
 	}
 }
 
@@ -101,6 +101,7 @@ func WithConsumerArgs(config ConsumerArgs) consumerOption {
 func (c *Consumer) Listen() {
 	// Make able to run not main goroutine if need to use with HTTP
 	if c.wg != nil {
+		c.wg.Add(1)
 		defer c.wg.Done()
 	}
 
