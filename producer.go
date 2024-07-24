@@ -71,9 +71,9 @@ func (p *Producer) Send(ex, rk string, msg interface{}, method string) error {
 	return nil
 }
 
-func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (res *[]byte, err error) {
+func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (res []byte, err error) {
 	if !p.Rmq.isInitializedRpc {
-		return nil, errors.New("Producer initialized with RPC mode to use SendReplayMsg")
+		return nil, errors.New("initialize rmq with RPC mode to use SendReplayMsg")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -120,16 +120,32 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 		return nil, err
 	}
 
-	res = p.listenReplayMsg()
+	res = p.listenReplayMsg(ctx, corrId)
 
 	return res, nil
 }
 
-func (p *Producer) listenReplayMsg() *[]byte {
+func (p *Producer) listenReplayMsg(ctx context.Context, correlationId string) []byte {
+	replayMsgBytes, ok := p.Rmq.replayMsgMap[correlationId]
+
+	if ok {
+		delete(p.Rmq.replayMsgMap, correlationId)
+		return replayMsgBytes
+	}
+
 	for {
 		select {
+		case <-ctx.Done():
+			delete(p.Rmq.replayMsgMap, correlationId)
+			fmt.Println("Response timeout by sending replay message")
+			return nil
 		case msg := <-p.Rmq.replayMsgChan:
-			return &msg
+			if msg.CorrelationId != correlationId {
+				p.Rmq.replayMsgMap[msg.CorrelationId] = msg.Body
+			} else {
+				delete(p.Rmq.replayMsgMap, correlationId)
+				return msg.Body
+			}
 		}
 	}
 }

@@ -18,10 +18,11 @@ type Rmq struct {
 	// TODO
 	topicQueue        *amqp.Queue
 	msgChan           chan []byte
-	replayMsgChan     chan []byte
+	replayMsgChan     chan processReplayMsg
 	isConnected       bool
 	isInitializedRpc  bool
 	correlationIdsMap map[string]string
+	replayMsgMap      map[string][]byte
 }
 
 type ConnectConfig struct {
@@ -76,6 +77,11 @@ type replayQueueData struct {
 	rk           string
 }
 
+type processReplayMsg struct {
+	Body          []byte
+	CorrelationId string
+}
+
 type replayMsg struct {
 	Msg           interface{}
 	Method        string
@@ -121,7 +127,7 @@ func New(options ...RmqOption) *Rmq {
 		isInitializedRpc:  false,
 		correlationIdsMap: make(map[string]string),
 		msgChan:           make(chan []byte),
-		replayMsgChan:     make(chan []byte),
+		replayMsgChan:     make(chan processReplayMsg),
 	}
 
 	// init optional settings

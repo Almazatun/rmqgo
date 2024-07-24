@@ -127,7 +127,7 @@ func TestSendReplyMsg(t *testing.T) {
 
 	receivedMsg := SendMsg{}
 
-	err = json.Unmarshal(*b, &receivedMsg)
+	err = json.Unmarshal(b, &receivedMsg)
 
 	if err != nil {
 		t.Fatalf(err.Error())
@@ -208,7 +208,7 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 
 	receivedMsg := SendMsg{}
 
-	err = json.Unmarshal(*b, &receivedMsg)
+	err = json.Unmarshal(b, &receivedMsg)
 
 	if err != nil {
 		t.Fatalf(err.Error())

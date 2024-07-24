@@ -137,6 +137,7 @@ func (c *Consumer) Listen() {
 		go func() {
 			// Replay msg body from created handler func by topic
 			// Only read process from map without write process for that no need to use mutex
+			// Write only exists when initialized rmq instance
 			replayBody := c.handleTopicFunc(msg.Method, d.Body)
 
 			// Check correlation id from other service
@@ -152,8 +153,8 @@ func (c *Consumer) Listen() {
 				})
 			} else {
 				if ok {
-					delete(c.Rmq.correlationIdsMap, d.CorrelationId)
-					c.Rmq.replayMsgChan <- d.Body
+					// Moved delete correlation id to SendReplyMsg func
+					c.Rmq.replayMsgChan <- processReplayMsg{Body: d.Body, CorrelationId: d.CorrelationId}
 				} else {
 					c.Rmq.msgChan <- d.Body
 				}
