@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -23,6 +24,7 @@ type Rmq struct {
 	isInitializedRpc  bool
 	correlationIdsMap map[string]string
 	replayMsgMap      map[string][]byte
+	mu                sync.Mutex
 }
 
 type ConnectConfig struct {
@@ -126,8 +128,10 @@ func New(options ...RmqOption) *Rmq {
 		isConnected:       false,
 		isInitializedRpc:  false,
 		correlationIdsMap: make(map[string]string),
+		replayMsgMap:      make(map[string][]byte),
 		msgChan:           make(chan []byte),
 		replayMsgChan:     make(chan processReplayMsg),
+		mu:                sync.Mutex{},
 	}
 
 	// init optional settings

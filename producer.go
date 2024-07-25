@@ -96,7 +96,9 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 
 	corrId := string(corrIdBytes)
 
+	p.Rmq.mu.Lock()
 	p.Rmq.correlationIdsMap[corrId] = corrId
+	p.Rmq.mu.Unlock()
 
 	if p.Rmq.channel == nil {
 		log.Fatal("Not initialized channel in Rmq")
@@ -141,7 +143,9 @@ func (p *Producer) listenReplayMsg(ctx context.Context, correlationId string) []
 			return nil
 		case msg := <-p.Rmq.replayMsgChan:
 			if msg.CorrelationId != correlationId {
+				p.Rmq.mu.Lock()
 				p.Rmq.replayMsgMap[msg.CorrelationId] = msg.Body
+				p.Rmq.mu.Unlock()
 			} else {
 				delete(p.Rmq.replayMsgMap, correlationId)
 				return msg.Body

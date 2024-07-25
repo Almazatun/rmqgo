@@ -3,6 +3,7 @@ package rmqgo
 import (
 	"encoding/json"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/Almazatun/rmqgo/util"
@@ -139,6 +140,37 @@ func TestSendReplyMsg(t *testing.T) {
 			t.Fatalf("Not published message in queue")
 		}
 	}
+}
+
+func TestSendReplyMsgConcurrent(t *testing.T) {
+	sendMsgList := []string{"msg", "msg2", "msg3", "msg4", "msg5"}
+	wg := sync.WaitGroup{}
+
+	for _, msg := range sendMsgList {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			b, err := producer.SendReplyMsg(Exchanges.RmqDirect, testQueueName, msg, "")
+
+			if err != nil {
+				t.Fatalf("Failed to publish message: %v", msg)
+			}
+
+			receivedMsg := SendMsg{}
+
+			err = json.Unmarshal(b, &receivedMsg)
+
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			if receivedMsg.Msg != msg {
+				t.Fatalf("Not published message in queue")
+			}
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestSendReplyMsgByOtherService(t *testing.T) {

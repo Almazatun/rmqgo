@@ -134,32 +134,30 @@ func (c *Consumer) Listen() {
 			continue
 		}
 
-		go func() {
-			// Replay msg body from created handler func by topic
-			// Only read process from map without write process for that no need to use mutex
-			// Write only exists when initialized rmq instance
-			replayBody := c.handleTopicFunc(msg.Method, d.Body)
+		// Replay msg body from created handler func by topic
+		// Only read process from map without write process for that no need to use mutex
+		// Write only exists when initialized rmq instance
+		replayBody := c.handleTopicFunc(msg.Method, d.Body)
 
-			// Check correlation id from other service
-			_, ok := c.Rmq.correlationIdsMap[d.CorrelationId]
+		// Check correlation id from other service
+		_, ok := c.Rmq.correlationIdsMap[d.CorrelationId]
 
-			if c.isReplayMsg(msg.Method, replayBody, ok) {
-				c.Rmq.replay(replayMsg{
-					Msg:           replayBody,
-					Method:        msg.Method,
-					CorrelationId: d.CorrelationId,
-					ReplayTo:      d.ReplyTo,
-					Exchange:      d.Exchange,
-				})
+		if c.isReplayMsg(msg.Method, replayBody, ok) {
+			c.Rmq.replay(replayMsg{
+				Msg:           replayBody,
+				Method:        msg.Method,
+				CorrelationId: d.CorrelationId,
+				ReplayTo:      d.ReplyTo,
+				Exchange:      d.Exchange,
+			})
+		} else {
+			if ok {
+				// Moved delete correlation id to SendReplyMsg func
+				c.Rmq.replayMsgChan <- processReplayMsg{Body: d.Body, CorrelationId: d.CorrelationId}
 			} else {
-				if ok {
-					// Moved delete correlation id to SendReplyMsg func
-					c.Rmq.replayMsgChan <- processReplayMsg{Body: d.Body, CorrelationId: d.CorrelationId}
-				} else {
-					c.Rmq.msgChan <- d.Body
-				}
+				c.Rmq.msgChan <- d.Body
 			}
-		}()
+		}
 
 		// https://www.rabbitmq.com/confirms.html
 		d.Ack(true)
