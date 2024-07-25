@@ -118,23 +118,26 @@ func TestSendMsgByMethodProducer(t *testing.T) {
 }
 
 func TestSendReplyMsg(t *testing.T) {
-	msg := "msg"
-	b, err := producer.SendReplyMsg(Exchanges.RmqDirect, testQueueName, msg, "")
+	sendMsgList := []string{"msg", "msg2"}
 
-	if err != nil {
-		t.Fatalf("Failed to publish message")
-	}
+	for _, msg := range sendMsgList {
+		b, err := producer.SendReplyMsg(Exchanges.RmqDirect, testQueueName, msg, "")
 
-	receivedMsg := SendMsg{}
+		if err != nil {
+			t.Fatalf("Failed to publish message: %v", msg)
+		}
 
-	err = json.Unmarshal(b, &receivedMsg)
+		receivedMsg := SendMsg{}
 
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
+		err = json.Unmarshal(b, &receivedMsg)
 
-	if receivedMsg.Msg != msg {
-		t.Fatalf("Not published message in queue")
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
+		if receivedMsg.Msg != msg {
+			t.Fatalf("Not published message in queue")
+		}
 	}
 }
 
