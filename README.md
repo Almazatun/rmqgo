@@ -1,5 +1,8 @@
 # 🐰 rmqgo
 
+[![Go Version](https://img.shields.io/badge/go-1.20+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+[![License](https://img.shields.io/badge/license-MIT-0969da?style=flat-square&logo=opensource)](https://opensource.org/licenses/MIT)
+
 Wrapper of [rabbitmq/amqp091-go](https://github.com/rabbitmq/amqp091-go) that provides some features.
 
 ## Installation
