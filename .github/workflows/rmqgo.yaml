@@ -3,6 +3,8 @@ name: rmqgo
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 env:
   APP_ENV: ${{ secrets.APP_ENV }}
