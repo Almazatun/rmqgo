@@ -124,6 +124,10 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 
 	res = p.listenReplayMsg(ctx, corrId)
 
+	if res == nil {
+		return nil, errors.New("Response timeout by sending replay message")
+	}
+
 	return res, nil
 }
 
@@ -139,7 +143,6 @@ func (p *Producer) listenReplayMsg(ctx context.Context, correlationId string) []
 		select {
 		case <-ctx.Done():
 			delete(p.Rmq.replayMsgMap, correlationId)
-			fmt.Println("Response timeout by sending replay message")
 			return nil
 		case msg := <-p.Rmq.replayMsgChan:
 			if msg.CorrelationId != correlationId {

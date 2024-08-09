@@ -24,7 +24,7 @@ type Rmq struct {
 	isInitializedRpc  bool
 	correlationIdsMap map[string]string
 	replayMsgMap      map[string][]byte
-	mu                sync.Mutex
+	mu                sync.RWMutex
 }
 
 type ConnectConfig struct {
@@ -131,7 +131,7 @@ func New(options ...RmqOption) *Rmq {
 		replayMsgMap:      make(map[string][]byte),
 		msgChan:           make(chan []byte),
 		replayMsgChan:     make(chan processReplayMsg),
-		mu:                sync.Mutex{},
+		mu:                sync.RWMutex{},
 	}
 
 	// init optional settings
