@@ -15,7 +15,7 @@ var user, pass, host, port string
 var q *amqp091.Queue
 
 func TestInitRmqgo(t *testing.T) {
-	mq = *New(WithRpc("replay", ExchangeType.Direct))
+	mq = *New(WithRpc("replay", ExchangeType.Direct()))
 
 	if reflect.ValueOf(mq).IsZero() {
 		t.Fatalf("Rmq not initialized")
@@ -70,8 +70,8 @@ func TestCreateExchange(t *testing.T) {
 	args := make(map[string]interface{})
 
 	err := mq.CreateExchange(CreateExchangeConfig{
-		Name:       Exchanges.RmqDirect,
-		Type:       ExchangeType.Direct,
+		Name:       Exchanges.Direct(),
+		Type:       ExchangeType.Direct(),
 		Durable:    true,
 		AutoDelete: false,
 		Internal:   false,
@@ -90,7 +90,7 @@ func TestBindExchangeByQueue(t *testing.T) {
 	err := mq.BindQueueByExchange(BindQueueByExgConfig{
 		QueueName:    q.Name,
 		RoutingKey:   q.Name,
-		ExchangeName: Exchanges.RmqDirect,
+		ExchangeName: Exchanges.Direct(),
 		NoWait:       false,
 		Args:         &args,
 	})

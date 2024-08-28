@@ -16,7 +16,7 @@ var testQueueName = "replay"
 var testConsumer *Consumer
 
 func initRmqgo(t *testing.T) {
-	rmqgoProducer = *New(WithRpc(testQueueName, ExchangeType.Direct))
+	rmqgoProducer = *New(WithRpc(testQueueName, ExchangeType.Direct()))
 
 	if reflect.ValueOf(rmqgoProducer).IsZero() {
 		t.Fatalf("Rmq not initialized")
@@ -73,7 +73,7 @@ func createConsumerListener(t *testing.T) {
 
 func TestSendMsgProducer(t *testing.T) {
 	msg := "test"
-	err := producer.Send(Exchanges.RmqDirect, testQueueName, msg, "")
+	err := producer.Send(Exchanges.Direct(), testQueueName, msg, "")
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -97,7 +97,7 @@ func TestSendMsgProducer(t *testing.T) {
 func TestSendMsgByMethodProducer(t *testing.T) {
 	msg := "msg"
 	method := "method"
-	err := producer.Send(Exchanges.RmqDirect, testQueueName, msg, method)
+	err := producer.Send(Exchanges.Direct(), testQueueName, msg, method)
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -122,7 +122,7 @@ func TestSendReplyMsg(t *testing.T) {
 	sendMsgList := []string{"msg", "msg2"}
 
 	for _, msg := range sendMsgList {
-		b, err := producer.SendReplyMsg(Exchanges.RmqDirect, testQueueName, msg, "")
+		b, err := producer.SendReplyMsg(Exchanges.Direct(), testQueueName, msg, "")
 
 		if err != nil {
 			t.Fatalf("Failed to publish message: %v", msg)
@@ -150,7 +150,7 @@ func TestSendReplyMsgConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b, err := producer.SendReplyMsg(Exchanges.RmqDirect, testQueueName, msg, "")
+			b, err := producer.SendReplyMsg(Exchanges.Direct(), testQueueName, msg, "")
 
 			if err != nil {
 				t.Fatalf("Failed to publish message: %v", msg)
@@ -205,7 +205,7 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 	rmqgoOtherService.BindQueueByExchange(BindQueueByExgConfig{
 		QueueName:    s,
 		RoutingKey:   s,
-		ExchangeName: Exchanges.RmqDirect,
+		ExchangeName: Exchanges.Direct(),
 		NoWait:       false,
 		Args:         &args,
 	})
@@ -235,7 +235,7 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 	consumerService.AddTopicsFuncs(topicsFuncs)
 	go consumerService.Listen()
 
-	b, err := producer.SendReplyMsg(Exchanges.RmqDirect, s, sendMsg, nameFunc)
+	b, err := producer.SendReplyMsg(Exchanges.Direct(), s, sendMsg, nameFunc)
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -255,7 +255,7 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 }
 
 func TestSendMsgByTopic(t *testing.T) {
-	rmqgoTopic := New(WithTopicRpc("logs_topic", ExchangeType.Topic, "#"))
+	rmqgoTopic := New(WithTopicRpc("logs_topic", ExchangeType.Topic(), "#"))
 
 	envs := util.GetENVs()
 	config := ConnectConfig{User: envs.User, Pass: envs.Pass, Host: envs.Host, Port: envs.Port}
@@ -284,7 +284,7 @@ func TestSendMsgByTopic(t *testing.T) {
 	p := NewProducer(rmqgoTopic)
 
 	msg := "log"
-	err := p.Send(Exchanges.RmqTopic, "logs_topic", msg, "")
+	err := p.Send(Exchanges.Topic(), "logs_topic", msg, "")
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")

@@ -92,31 +92,11 @@ type replayMsg struct {
 	Exchange      string
 }
 
-type exchangeType struct {
-	Direct string
-	Topic  string
-	Fanout string
-}
+type exchanges struct{}
+type exchangeType struct{}
 
-type exchanges struct {
-	RmqDirect  string
-	RmqTopic   string
-	RmqFanout  string
-	RmqHeaders string
-}
-
-var Exchanges = exchanges{
-	RmqDirect:  "rmq.direct",
-	RmqTopic:   "rmq.topic",
-	RmqFanout:  "rmq.fanout",
-	RmqHeaders: "rmq.headers",
-}
-
-var ExchangeType = exchangeType{
-	Direct: "direct",
-	Topic:  "topic",
-	Fanout: "fanout",
-}
+var Exchanges = exchanges{}
+var ExchangeType = exchangeType{}
 
 func New(options ...RmqOption) *Rmq {
 	rmq := &Rmq{
@@ -292,10 +272,10 @@ func (rmq *Rmq) replay(input replayMsg) {
 
 	err = rmq.channel.PublishWithContext(
 		ctx,
-		Exchanges.RmqDirect, // exchange
-		input.ReplayTo,      // routing key
-		false,               // mandatory
-		false,               // immediate
+		Exchanges.Direct(), // exchange
+		input.ReplayTo,     // routing key
+		false,              // mandatory
+		false,              // immediate
 		amqp.Publishing{
 			CorrelationId: input.CorrelationId,
 			ContentType:   "text/plain",
@@ -327,12 +307,12 @@ func (rmq *Rmq) declareReplayQueue(replayQueue replayQueueData) {
 
 	var name string
 
-	if replayQueue.exchangeType == ExchangeType.Direct {
-		name = Exchanges.RmqDirect
+	if replayQueue.exchangeType == ExchangeType.Direct() {
+		name = Exchanges.Direct()
 	}
 
-	if replayQueue.exchangeType == ExchangeType.Topic {
-		name = Exchanges.RmqTopic
+	if replayQueue.exchangeType == ExchangeType.Topic() {
+		name = Exchanges.Topic()
 	}
 
 	err = rmq.CreateExchange(CreateExchangeConfig{
@@ -357,11 +337,11 @@ func (rmq *Rmq) declareReplayQueue(replayQueue replayQueueData) {
 		Args:         &args,
 	}
 
-	if replayQueue.exchangeType == ExchangeType.Topic {
+	if replayQueue.exchangeType == ExchangeType.Topic() {
 		bindQueueByExchange.RoutingKey = rmq.replyQueueData.rk
 	}
 
-	if replayQueue.exchangeType == ExchangeType.Direct {
+	if replayQueue.exchangeType == ExchangeType.Direct() {
 		bindQueueByExchange.RoutingKey = rmq.replyQueue.Name
 	}
 
@@ -398,6 +378,36 @@ func WithRpc(replayQueueName, exchangeType string) RmqOption {
 
 		rmq.isInitializedRpc = true
 	}
+}
+
+// Exchanges
+func (ex *exchanges) Direct() string {
+	return "rmq.direct"
+}
+
+func (ex *exchanges) Topic() string {
+	return "rmq.topic"
+}
+
+func (ex *exchanges) Fanout() string {
+	return "rmq.fanout"
+}
+
+func (ex *exchanges) Headers() string {
+	return "rmq.headers"
+}
+
+// Exchange types
+func (ex *exchangeType) Direct() string {
+	return "direct"
+}
+
+func (ex *exchangeType) Topic() string {
+	return "topic"
+}
+
+func (ex *exchangeType) Fanout() string {
+	return "fanout"
 }
 
 func WithTopicRpc(replayQueueName, exchangeType, rk string) RmqOption {
@@ -445,7 +455,7 @@ func fillConnectionConfig(cf ConnectConfig) ConnectConfig {
 }
 
 func validateExchangeType(exType string) {
-	isValidType := exType == ExchangeType.Direct || exType == ExchangeType.Topic || ExchangeType.Fanout == exType
+	isValidType := exType == ExchangeType.Direct() || exType == ExchangeType.Topic() || ExchangeType.Fanout() == exType
 
 	if isValidType {
 		return

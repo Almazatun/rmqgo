@@ -45,8 +45,8 @@ func TestCreateConsumer(t *testing.T) {
 	}
 
 	rmqgoConsumer.CreateExchange(CreateExchangeConfig{
-		Name:       Exchanges.RmqDirect,
-		Type:       ExchangeType.Direct,
+		Name:       Exchanges.Direct(),
+		Type:       ExchangeType.Direct(),
 		Durable:    true,
 		AutoDelete: false,
 		Internal:   false,
@@ -61,7 +61,7 @@ func TestCreateConsumer(t *testing.T) {
 	err = rmqgoConsumer.BindQueueByExchange(BindQueueByExgConfig{
 		RoutingKey:   testQueue,
 		QueueName:    testQueue,
-		ExchangeName: Exchanges.RmqDirect,
+		ExchangeName: Exchanges.Direct(),
 		NoWait:       false,
 		Args:         &args,
 	})
@@ -94,7 +94,7 @@ func TestConsumerListener(t *testing.T) {
 	testProducer := NewProducer(&rmqgoConsumer)
 
 	msg := "hello"
-	err := testProducer.Send(Exchanges.RmqDirect, testQueue, msg, "")
+	err := testProducer.Send(Exchanges.Direct(), testQueue, msg, "")
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
