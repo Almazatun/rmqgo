@@ -16,7 +16,7 @@ func main() {
 		panic(err)
 	}
 
-	rmq := rmqgo.New(rmqgo.WithRpc("replay_test", rmqgo.ExchangeType.Direct))
+	rmq := rmqgo.New(rmqgo.WithRpc("replay_test", rmqgo.ExchangeType.Direct()))
 	err = rmq.Connect(rmqgo.ConnectConfig{
 		Host: os.Getenv("RMQGO_HOST"),
 		Port: os.Getenv("RMQGO_PORT"),
@@ -47,8 +47,8 @@ func main() {
 	}
 
 	err = rmq.CreateExchange(rmqgo.CreateExchangeConfig{
-		Name:       rmqgo.Exchanges.RmqDirect,
-		Type:       rmqgo.ExchangeType.Direct,
+		Name:       rmqgo.Exchanges.Direct(),
+		Type:       rmqgo.ExchangeType.Direct(),
 		Durable:    true,
 		AutoDelete: false,
 		Internal:   false,
@@ -63,7 +63,7 @@ func main() {
 	err = rmq.BindQueueByExchange(rmqgo.BindQueueByExgConfig{
 		RoutingKey:   q.Name,
 		QueueName:    q.Name,
-		ExchangeName: rmqgo.Exchanges.RmqDirect,
+		ExchangeName: rmqgo.Exchanges.Direct(),
 		NoWait:       false,
 		Args:         &args,
 	})

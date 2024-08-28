@@ -80,19 +80,23 @@ if err != nil {
 
 Exchanges
 
-```bash
-RmqDirect
-RmqTopic
-RmqFanout
-RmqHeaders
+```go
+import (rmqgo "github.com/Almazatun/rmqgo")
+
+rmqgo.Exchanges.Direct()
+rmqgo.Exchanges.Topic()
+rmqgo.Exchanges.Fanout()
+rmqgo.Exchanges.Headers()
 ```
 
 Exchange types
 
-```bash
-Direct
-Topic
-Fanout
+```go
+import (rmqgo "github.com/Almazatun/rmqgo")
+
+rmqgo.ExchangeType.Direct()
+rmqgo.ExchangeType.Topic()
+rmqgo.ExchangeType.Fanout()
 ```
 
 ```go
