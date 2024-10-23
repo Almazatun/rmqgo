@@ -79,7 +79,7 @@ func TestSendMsgProducer(t *testing.T) {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-rmqgoProducer.msgChan
+	b := <-rmqgoProducer.MsgChan
 
 	receivedMsg := SendMsg{}
 
@@ -103,7 +103,7 @@ func TestSendMsgByMethodProducer(t *testing.T) {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-rmqgoProducer.msgChan
+	b := <-rmqgoProducer.MsgChan
 
 	receivedMsg := SendMsg{}
 
@@ -122,7 +122,7 @@ func TestSendReplyMsg(t *testing.T) {
 	sendMsgList := []string{"msg", "msg2"}
 
 	for _, msg := range sendMsgList {
-		b, err := producer.SendReplyMsg(Exchanges.Direct(), testQueueName, msg, "")
+		b, err := producer.SendReply(Exchanges.Direct(), testQueueName, msg, "")
 
 		if err != nil {
 			t.Fatalf("Failed to publish message: %v", msg)
@@ -150,7 +150,7 @@ func TestSendReplyMsgConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b, err := producer.SendReplyMsg(Exchanges.Direct(), testQueueName, msg, "")
+			b, err := producer.SendReply(Exchanges.Direct(), testQueueName, msg, "")
 
 			if err != nil {
 				t.Fatalf("Failed to publish message: %v", msg)
@@ -235,7 +235,7 @@ func TestSendReplyMsgByOtherService(t *testing.T) {
 	consumerService.AddTopicsFuncs(topicsFuncs)
 	go consumerService.Listen()
 
-	b, err := producer.SendReplyMsg(Exchanges.Direct(), s, sendMsg, nameFunc)
+	b, err := producer.SendReply(Exchanges.Direct(), s, sendMsg, nameFunc)
 
 	if err != nil {
 		t.Fatalf("Failed to publish message")
@@ -290,7 +290,7 @@ func TestSendMsgByTopic(t *testing.T) {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-rmqgoTopic.msgChan
+	b := <-rmqgoTopic.MsgChan
 
 	receivedMsg := SendMsg{}
 

@@ -100,7 +100,7 @@ func TestConsumerListener(t *testing.T) {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-rmqgoConsumer.msgChan
+	b := <-rmqgoConsumer.MsgChan
 
 	receivedMsg := SendMsg{}
 

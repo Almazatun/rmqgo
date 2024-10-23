@@ -17,8 +17,10 @@ type Rmq struct {
 	replyQueue     *amqp.Queue
 	replyQueueData *replayQueueData
 	// TODO
-	topicQueue        *amqp.Queue
-	msgChan           chan []byte
+	topicQueue *amqp.Queue
+	// Msg channel without replay option
+	MsgChan chan []byte
+	// Msg channel with replay option (RPC mode)
 	replayMsgChan     chan processReplayMsg
 	isConnected       bool
 	isInitializedRpc  bool
@@ -109,7 +111,7 @@ func New(options ...RmqOption) *Rmq {
 		isInitializedRpc:  false,
 		correlationIdsMap: make(map[string]string),
 		replayMsgMap:      make(map[string][]byte),
-		msgChan:           make(chan []byte),
+		MsgChan:           make(chan []byte),
 		replayMsgChan:     make(chan processReplayMsg),
 		mu:                sync.RWMutex{},
 	}
@@ -241,7 +243,7 @@ func (rmq *Rmq) Close() error {
 		return errors.New(errorMsg)
 	}
 
-	close(rmq.msgChan)
+	close(rmq.MsgChan)
 	close(rmq.replayMsgChan)
 
 	err := rmq.channel.Close()

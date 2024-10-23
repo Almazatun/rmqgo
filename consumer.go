@@ -10,7 +10,7 @@ import (
 )
 
 type Consumer struct {
-	*Rmq
+	rmq         *Rmq
 	handleFuncs map[string]func([]byte) interface{}
 	wg          *sync.WaitGroup
 	args        amqp.Table
@@ -44,7 +44,7 @@ type consumerMsg struct {
 
 func NewConsumer(rmq *Rmq, options ...consumerOption) *Consumer {
 	consumer := &Consumer{
-		Rmq:         rmq,
+		rmq:         rmq,
 		handleFuncs: make(map[string]func([]byte) interface{}),
 	}
 
@@ -105,11 +105,11 @@ func (c *Consumer) Listen() {
 		defer c.wg.Done()
 	}
 
-	if c.Rmq.channel == nil {
+	if c.rmq.channel == nil {
 		log.Fatal("Not initialized channel in Rmq")
 	}
 
-	msgs, err := c.Rmq.channel.Consume(
+	msgs, err := c.rmq.channel.Consume(
 		c.config.NameQueue, // queue
 		c.config.Consumer,  // consumer
 		c.config.AutoAck,
@@ -140,10 +140,10 @@ func (c *Consumer) Listen() {
 		replayBody := c.handleTopicFunc(msg.Method, d.Body)
 
 		// Check correlation id from other service
-		_, ok := c.Rmq.correlationIdsMap[d.CorrelationId]
+		_, ok := c.rmq.correlationIdsMap[d.CorrelationId]
 
 		if c.isReplayMsg(msg.Method, replayBody, ok) {
-			c.Rmq.replay(replayMsg{
+			c.rmq.replay(replayMsg{
 				Msg:           replayBody,
 				Method:        msg.Method,
 				CorrelationId: d.CorrelationId,
@@ -152,10 +152,10 @@ func (c *Consumer) Listen() {
 			})
 		} else {
 			if ok {
-				// Moved delete correlation id to SendReplyMsg func
-				c.Rmq.replayMsgChan <- processReplayMsg{Body: d.Body, CorrelationId: d.CorrelationId}
+				// Moved delete correlation id to SendReply func (producer.go)
+				c.rmq.replayMsgChan <- processReplayMsg{Body: d.Body, CorrelationId: d.CorrelationId}
 			} else {
-				c.Rmq.msgChan <- d.Body
+				c.rmq.MsgChan <- d.Body
 			}
 		}
 

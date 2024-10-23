@@ -13,7 +13,7 @@ import (
 )
 
 type Producer struct {
-	*Rmq
+	rmq *Rmq
 }
 
 type ProducerInitConfig struct {
@@ -25,7 +25,7 @@ type producerOption func(*Producer)
 
 func NewProducer(rmq *Rmq, options ...producerOption) *Producer {
 	producer := &Producer{
-		Rmq: rmq,
+		rmq: rmq,
 	}
 
 	for _, opt := range options {
@@ -48,11 +48,11 @@ func (p *Producer) Send(ex, rk string, msg interface{}, method string) error {
 		log.Fatal(err)
 	}
 
-	if p.Rmq.channel == nil {
+	if p.rmq.channel == nil {
 		log.Fatal("Not initialized channel in Rmq")
 	}
 
-	err = p.Rmq.channel.PublishWithContext(ctx,
+	err = p.rmq.channel.PublishWithContext(ctx,
 		ex,    // exchange
 		rk,    // routing key
 		false, // mandatory
@@ -71,8 +71,8 @@ func (p *Producer) Send(ex, rk string, msg interface{}, method string) error {
 	return nil
 }
 
-func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (res []byte, err error) {
-	if !p.Rmq.isInitializedRpc {
+func (p *Producer) SendReply(ex, rk string, msg interface{}, method string) (res []byte, err error) {
+	if !p.rmq.isInitializedRpc {
 		return nil, errors.New("initialize rmq with RPC mode to use SendReplayMsg")
 	}
 
@@ -96,15 +96,15 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 
 	corrId := string(corrIdBytes)
 
-	p.Rmq.mu.Lock()
-	p.Rmq.correlationIdsMap[corrId] = corrId
-	p.Rmq.mu.Unlock()
+	p.rmq.mu.Lock()
+	p.rmq.correlationIdsMap[corrId] = corrId
+	p.rmq.mu.Unlock()
 
-	if p.Rmq.channel == nil {
+	if p.rmq.channel == nil {
 		log.Fatal("Not initialized channel in Rmq")
 	}
 
-	err = p.Rmq.channel.PublishWithContext(ctx,
+	err = p.rmq.channel.PublishWithContext(ctx,
 		ex,    // exchange
 		rk,    // routing key
 		false, // mandatory
@@ -112,7 +112,7 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 		amqp.Publishing{
 			ContentType:   "text/plain",
 			Body:          []byte(out),
-			ReplyTo:       p.Rmq.replyQueue.Name,
+			ReplyTo:       p.rmq.replyQueue.Name,
 			CorrelationId: corrId,
 		})
 
@@ -132,25 +132,25 @@ func (p *Producer) SendReplyMsg(ex, rk string, msg interface{}, method string) (
 }
 
 func (p *Producer) listenReplayMsg(ctx context.Context, correlationId string) []byte {
-	replayMsgBytes, ok := p.Rmq.replayMsgMap[correlationId]
+	replayMsgBytes, ok := p.rmq.replayMsgMap[correlationId]
 
 	if ok {
-		delete(p.Rmq.replayMsgMap, correlationId)
+		delete(p.rmq.replayMsgMap, correlationId)
 		return replayMsgBytes
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			delete(p.Rmq.replayMsgMap, correlationId)
+			delete(p.rmq.replayMsgMap, correlationId)
 			return nil
-		case msg := <-p.Rmq.replayMsgChan:
+		case msg := <-p.rmq.replayMsgChan:
 			if msg.CorrelationId != correlationId {
-				p.Rmq.mu.Lock()
-				p.Rmq.replayMsgMap[msg.CorrelationId] = msg.Body
-				p.Rmq.mu.Unlock()
+				p.rmq.mu.Lock()
+				p.rmq.replayMsgMap[msg.CorrelationId] = msg.Body
+				p.rmq.mu.Unlock()
 			} else {
-				delete(p.Rmq.replayMsgMap, correlationId)
+				delete(p.rmq.replayMsgMap, correlationId)
 				return msg.Body
 			}
 		}
