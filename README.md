@@ -19,16 +19,16 @@ import (rmqgo "github.com/Almazatun/rmqgo")
 rmq := rmqgo.New()
 
 config := rmqgo.ConnectConfig{
-	User: "user",
-	Pass: "pass",
-	Host: "host",
-	Port: "port",
+ User: "user",
+ Pass: "pass",
+ Host: "host",
+ Port: "port",
 }
 
 err := rmq.Connect(config)
 
 if err != nil {
-	// some action
+ // some action
 }
 ```
 
@@ -52,7 +52,7 @@ rmqgo.New(rmqgo.WithTopicRpc(replayQueueName, exchangeType, routingKey))
 ch, err := rmq.CreateChannel()
 
 if err != nil {
-	// some action
+ // some action
 }
 ```
 
@@ -62,16 +62,16 @@ if err != nil {
 args := make(map[string]interface{})
 
 q, err := rmq.CreateQueue(rmqgo.CreateQueueConfig{
-	Name:         "some_name",
-	DeleteUnused: false,
-	Exclusive:    false,
-	NoWait:       false,
-	Durable:      true,
-	Args:         &args,
+ Name:         "some_name",
+ DeleteUnused: false,
+ Exclusive:    false,
+ NoWait:       false,
+ Durable:      true,
+ Args:         &args,
 })
 
 if err != nil {
-	// some action
+ // some action
 }
 
 ```
@@ -103,17 +103,17 @@ rmqgo.ExchangeType.Fanout()
 args := make(map[string]interface{})
 
 err := rmq.CreateExchange(rmqgo.CreateExchangeConfig{
-	Name:       rmqgo.Exchanges.RmqDirect,
-	Type:       rmqgo.ExchangeType.Direct,
-	Durable:    true,
-	AutoDelete: false,
-	Internal:   false,
-	NoWait:     false,
-	Args:       &args,
+ Name:       rmqgo.Exchanges.RmqDirect,
+ Type:       rmqgo.ExchangeType.Direct,
+ Durable:    true,
+ AutoDelete: false,
+ Internal:   false,
+ NoWait:     false,
+ Args:       &args,
 })
 
 if err != nil {
-	// some action
+ // some action
 }
 ```
 
@@ -123,15 +123,15 @@ if err != nil {
 args := make(map[string]interface{})
 
 err := rmq.BindQueueByExchange(rmqgo.BindQueueByExgConfig{
-	QueueName:    "some_name",
-	RoutingKey:   "some_key",
-	ExchangeName: Exchanges.RmqDirect,
-	NoWait:       false,
-	Args:         &args,
+ QueueName:    "some_name",
+ RoutingKey:   "some_key",
+ ExchangeName: Exchanges.RmqDirect,
+ NoWait:       false,
+ Args:         &args,
 })
 
 if err != nil {
-	// some action
+ // some action
 }
 ```
 
@@ -147,7 +147,7 @@ producer = rmqgo.NewProducer(&rmq)
 err := producer.Send(Exchanges.RmqDirect, routingKey, msg, method)
 
 if err != nil {
-	// some action
+ // some action
 }
 
 ```
@@ -155,10 +155,10 @@ if err != nil {
 ### Send message with reply
 
 ```go
-b, err := producer.SendReplyMsg(Exchanges.RmqDirect, routingKey, msg, method)
+b, err := producer.SendReply(Exchanges.RmqDirect, routingKey, msg, method)
 
 if err != nil {
-	// some action
+ // some action
 }
 
 // msg - is your own type SomeName struct { someFields:... }
@@ -166,7 +166,7 @@ if err != nil {
 err = json.Unmarshal(*b, &msg)
 
 if err != nil {
-	// some action
+ // some action
 }
 
 ```
@@ -175,17 +175,29 @@ if err != nil {
 
 ```go
 consumer := rmqgo.NewConsumer(
-		&rmq,
-		rmqgo.WithConsumerConfig(rmqgo.CreateConsumerConfig{
-			NameQueue: "some_name",
-			Consumer:  "some_value",
-			AutoAck:   false,
-			Exclusive: false,
-			NoWait:    false,
-			NoLocal:   false,
-		}),
-	)
+  &rmq,
+  rmqgo.WithConsumerConfig(rmqgo.CreateConsumerConfig{
+   NameQueue: "some_name",
+   Consumer:  "some_value",
+   AutoAck:   false,
+   Exclusive: false,
+   NoWait:    false,
+   NoLocal:   false,
+  }),
+ )
 
+consumer.Listen()
+```
+
+Consuming messages channel
+
+```go
+// Bytes - chan []byte
+
+rmq.MsgChan
+```
+
+```go
 consumer.Listen()
 ```
 
@@ -201,10 +213,10 @@ With `Consumer Args`
 
 ```go
 rmqgo.NewConsumer(*rmq, rmqgo.WithConsumerArgs(rmqgo.ConsumerArgs{
-	XDeadLetterExc        *""
-	XDeadLetterRoutingKey *""
-	Ttl                   *int
-	XExpires              *int
-	XMaxPriority          *int
+ XDeadLetterExc        *""
+ XDeadLetterRoutingKey *""
+ Ttl                   *int
+ XExpires              *int
+ XMaxPriority          *int
 }))
 ```
