@@ -10,7 +10,6 @@ import (
 
 var mq Rmq
 
-// var mq_Rmq_Service = *New()
 var user, pass, host, port string
 var q *amqp091.Queue
 

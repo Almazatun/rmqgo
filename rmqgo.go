@@ -19,7 +19,7 @@ type Rmq struct {
 	// TODO
 	topicQueue *amqp.Queue
 	// Msg channel without replay option
-	MsgChan chan []byte
+	msgChan chan []byte
 	// Msg channel with replay option (RPC mode)
 	replayMsgChan     chan processReplayMsg
 	isConnected       bool
@@ -111,7 +111,7 @@ func New(options ...RmqOption) *Rmq {
 		isInitializedRpc:  false,
 		correlationIdsMap: make(map[string]string),
 		replayMsgMap:      make(map[string][]byte),
-		MsgChan:           make(chan []byte),
+		msgChan:           make(chan []byte),
 		replayMsgChan:     make(chan processReplayMsg),
 		mu:                sync.RWMutex{},
 	}
@@ -243,7 +243,7 @@ func (rmq *Rmq) Close() error {
 		return errors.New(errorMsg)
 	}
 
-	close(rmq.MsgChan)
+	close(rmq.msgChan)
 	close(rmq.replayMsgChan)
 
 	err := rmq.channel.Close()
@@ -259,6 +259,11 @@ func (rmq *Rmq) Close() error {
 	}
 
 	return nil
+}
+
+// Only read access
+func (rmq *Rmq) ReceiveMessages() <-chan []byte {
+	return rmq.msgChan
 }
 
 func (rmq *Rmq) replay(input replayMsg) {

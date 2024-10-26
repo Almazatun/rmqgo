@@ -155,7 +155,7 @@ func (c *Consumer) Listen() {
 				// Moved delete correlation id to SendReply func (producer.go)
 				c.rmq.replayMsgChan <- processReplayMsg{Body: d.Body, CorrelationId: d.CorrelationId}
 			} else {
-				c.rmq.MsgChan <- d.Body
+				c.rmq.msgChan <- d.Body
 			}
 		}
 

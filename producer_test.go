@@ -79,7 +79,7 @@ func TestSendMsgProducer(t *testing.T) {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-rmqgoProducer.MsgChan
+	b := <-rmqgoProducer.ReceiveMessages()
 
 	receivedMsg := SendMsg{}
 
@@ -103,7 +103,7 @@ func TestSendMsgByMethodProducer(t *testing.T) {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-rmqgoProducer.MsgChan
+	b := <-rmqgoProducer.ReceiveMessages()
 
 	receivedMsg := SendMsg{}
 
@@ -290,7 +290,7 @@ func TestSendMsgByTopic(t *testing.T) {
 		t.Fatalf("Failed to publish message")
 	}
 
-	b := <-rmqgoTopic.MsgChan
+	b := <-rmqgoTopic.ReceiveMessages()
 
 	receivedMsg := SendMsg{}
 

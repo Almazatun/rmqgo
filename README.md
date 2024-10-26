@@ -189,12 +189,11 @@ consumer := rmqgo.NewConsumer(
 consumer.Listen()
 ```
 
-Consuming messages channel
+Consuming messages from queues
 
 ```go
-// Bytes - chan []byte
-
-rmq.MsgChan
+// Bytes - <- chan []byte
+<- rmq.ReceiveMessages()
 ```
 
 ```go

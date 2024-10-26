@@ -93,28 +93,31 @@ func TestCreateConsumer(t *testing.T) {
 func TestConsumerListener(t *testing.T) {
 	testProducer := NewProducer(&rmqgoConsumer)
 
-	msg := "hello"
-	err := testProducer.Send(Exchanges.Direct(), testQueue, msg, "")
+	msgList := []string{"test1", "test2"}
 
-	if err != nil {
-		t.Fatalf("Failed to publish message")
+	for _, msg := range msgList {
+		err := testProducer.Send(Exchanges.Direct(), testQueue, msg, "")
+
+		if err != nil {
+			t.Fatalf("Failed to publish message")
+		}
+
+		b := <-rmqgoConsumer.ReceiveMessages()
+
+		receivedMsg := SendMsg{}
+
+		err = json.Unmarshal(b, &receivedMsg)
+
+		if err != nil {
+			t.Fatalf(err.Error())
+		}
+
+		if receivedMsg.Msg != msg {
+			t.Fatalf("Not published message in queue")
+		}
 	}
 
-	b := <-rmqgoConsumer.MsgChan
-
-	receivedMsg := SendMsg{}
-
-	err = json.Unmarshal(b, &receivedMsg)
-
-	if err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	if receivedMsg.Msg != msg {
-		t.Fatalf("Not published message in queue")
-	}
-
-	err = rmqgoConsumer.Close()
+	err := rmqgoConsumer.Close()
 
 	if err != nil {
 		t.Fatalf(err.Error())
